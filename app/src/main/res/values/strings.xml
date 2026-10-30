@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Martı Takip</string>
+
+    <!-- Tracker -->
+    <string name="scooter">Scooter</string>
+    <string name="moped">Moped</string>
+    <string name="settings">Ayarlar</string>
+    <string name="share">Paylaş</string>
+    <string name="history">Geçmiş</string>
+    <string name="archive_shift">Vardiyayı Kaydet &amp; Sıfırla</string>
+
+    <!-- Permission rationale -->
+    <string name="location_permission_rationale">Değişim noktalarını haritada göstermek için konum izni gerekir. İzin vermesen de sayaçlar çalışır.</string>
+
+    <!-- Map -->
+    <string name="map_title">Yoğunluk Haritası</string>
+    <string name="map_empty">Henüz haritalanmış değişim yok</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_increment_scooter">Scooter değişimi ekle</string>
+    <string name="cd_increment_moped">Moped değişimi ekle</string>
+    <string name="cd_decrement">Son değişimi geri al</string>
+    <string name="cd_recenter_map">Haritayı kayıtlara ortala</string>
+</resources>

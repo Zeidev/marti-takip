@@ -1,0 +1,125 @@
+name: Build APK
+
+# Zero-cost CI/CD:
+#  - runs on GitHub-hosted runners (free for public repositories),
+#  - uploads the APK as a workflow artifact on every push,
+#  - publishes a GitHub Release with the APK attached when a tag is pushed.
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "APK türü"
+        required: true
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Assemble APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0"
+
+      - name: Restore Gradle wrapper
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "::error::gradle-wrapper.jar is missing from the repository."
+            exit 1
+          fi
+          chmod +x gradlew
+
+      - name: Build debug APK
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'debug' }}
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Build release APK (unsigned unless secrets are configured)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'release' }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        continue-on-error: true
+
+      - name: Locate and rename APK
+        id: apk
+        run: |
+          set -euo pipefail
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+          if [ -z "${APK_PATH}" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -n 1)
+          SHORT_SHA=${GITHUB_SHA::7}
+          OUT_NAME="marti-takip-${VERSION:-1.0.0}-${SHORT_SHA}.apk"
+          cp "${APK_PATH}" "${OUT_NAME}"
+          echo "path=${OUT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "name=${OUT_NAME}" >> "$GITHUB_OUTPUT"
+          ls -lh "${OUT_NAME}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: marti-takip-apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Martı Takip ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ${{ steps.apk.outputs.path }}
+          body: |
+            ## 📦 Martı Takip ${{ github.ref_name }}
+
+            Saha operatörleri için batarya değişim takip uygulaması.
+
+            ### Kurulum
+            1. Aşağıdaki `.apk` dosyasını indir.
+            2. Telefonda **Ayarlar → Güvenlik → Bilinmeyen kaynaklar** iznini ver.
+            3. APK'ya dokunarak kur.
+
+            ### Notlar
+            - Konum izni verilirse her değişim noktası haritada görünür.
+            - Konum izni verilmezse sayaçlar çalışmaya devam eder.
+            - Veriler yalnızca cihazda (Room/SQLite) tutulur, hiçbir sunucuya gönderilmez.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

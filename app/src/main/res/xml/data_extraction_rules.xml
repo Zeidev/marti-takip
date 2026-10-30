@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="marti_takip.db" />
+        <include domain="database" path="marti_takip.db-wal" />
+        <include domain="database" path="marti_takip.db-shm" />
+        <include domain="sharedpref" path="marti_takip_settings.preferences_pb" />
+        <exclude domain="cache" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="marti_takip.db" />
+        <include domain="sharedpref" path="marti_takip_settings.preferences_pb" />
+    </device-transfer>
+</data-extraction-rules>
