@@ -67,6 +67,7 @@ android {
                 "proguard-rules.pro",
             )
             buildConfigField("String", "OSM_USER_AGENT", "\"com.martitakip.app/1.0.0 (Android; saha takip uygulamasi)\"")
+
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.create("release") {
                     storeFile = file(releaseKeystorePath!!)
@@ -74,6 +75,15 @@ android {
                     keyAlias = releaseKeyAlias
                     keyPassword = releaseKeyPassword
                 }
+            } else {
+                // No production keystore configured: sign with the debug key.
+                //
+                // An unsigned APK cannot be installed by an operator at all
+                // ("Missing META-INF/MANIFEST.MF"), which would make the
+                // release variant useless for the only thing it is for. A
+                // debug-signed build is installable, and the CI warns loudly
+                // that this is not a store-ready artifact.
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }

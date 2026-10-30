@@ -66,7 +66,7 @@ jobs:
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'debug' }}
         run: ./gradlew :app:assembleDebug --stacktrace
 
-      - name: Build release APK (unsigned unless secrets are configured)
+      - name: Build release APK
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'release' }}
         run: ./gradlew :app:assembleRelease --stacktrace
 
@@ -74,21 +74,44 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest --stacktrace
         continue-on-error: true
 
-      - name: Locate and rename APK
+      - name: Locate, verify and rename APK
         id: apk
         run: |
           set -euo pipefail
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+
+          # Pick the APK of the variant that was actually requested. Without
+          # this the release run silently packaged the debug build (or vice
+          # versa) because `find` returns whatever it sees first.
+          if [ "${{ inputs.build_type }}" = "release" ]; then
+            VARIANT="release"
+          else
+            VARIANT="debug"
+          fi
+
+          APK_PATH=$(find "app/build/outputs/apk/${VARIANT}" -name "*.apk" -type f | head -n 1)
           if [ -z "${APK_PATH}" ]; then
-            echo "::error::No APK was produced."
+            echo "::error::No ${VARIANT} APK was produced."
             exit 1
           fi
+
+          # Refuse to publish an APK that cannot be installed. An unsigned
+          # release would look fine in the artifact list but fail on the phone.
+          if ! "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify "${APK_PATH}"; then
+            echo "::error::${APK_PATH} is not signed and cannot be installed."
+            exit 1
+          fi
+
           VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -n 1)
           SHORT_SHA=${GITHUB_SHA::7}
-          OUT_NAME="marti-takip-${VERSION:-1.0.0}-${SHORT_SHA}.apk"
+          OUT_NAME="marti-takip-${VERSION:-1.0.0}-${VARIANT}-${SHORT_SHA}.apk"
           cp "${APK_PATH}" "${OUT_NAME}"
           echo "path=${OUT_NAME}" >> "$GITHUB_OUTPUT"
           echo "name=${OUT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "variant=${VARIANT}" >> "$GITHUB_OUTPUT"
+
+          if [ "${VARIANT}" = "release" ] && [ -z "${{ secrets.RELEASE_KEYSTORE_PATH }}" ]; then
+            echo "::warning::Release APK is debug-signed. Configure RELEASE_* secrets for a production build."
+          fi
           ls -lh "${OUT_NAME}"
 
       - name: Upload APK artifact
