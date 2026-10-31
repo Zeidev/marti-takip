@@ -489,7 +489,7 @@ private fun ShiftActions(
 /** `2026-10-30` -> `30 Ekim 2026, Cuma`. Falls back to the raw key. */
 private fun String.toPrettyDate(): String = runCatching {
     val date = LocalDate.parse(this)
-    date.format(DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", Locale("tr", "TR")))
+    date.format(DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", Locale.forLanguageTag("tr-TR")))
 }.getOrElse { this }
 
 /**

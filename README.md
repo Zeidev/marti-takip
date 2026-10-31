@@ -112,8 +112,8 @@ Release sayfasındaki doğrudan indirme linki paylaşılabilir.
 
 ### Yol B — Android Studio
 
-Android Studio (Ladybug veya üstü) ile aç, Gradle senkronizasyonunu bekle, **Run** ▶.
-JDK 17 ve Android SDK 35 gerekir.
+Android Studio (Meerkat veya üstü) ile aç, Gradle senkronizasyonunu bekle, **Run** ▶.
+JDK 17+ ve Android SDK 37 gerekir.
 
 ---
 
@@ -156,15 +156,24 @@ normalizasyonu/yuvarlama, hedef ilerlemesi, araç tipi serileştirme, para/süre
 
 | Bileşen | Sürüm |
 |---|---|
-| Kotlin | 2.0.21 |
-| AGP | 8.7.3 |
-| Gradle | 8.9 |
-| Compose BOM | 2024.12.01 |
-| Material 3 | 1.3.1 |
-| Room | 2.6.1 (KSP) |
+| Kotlin | 2.4.21 |
+| AGP | 9.4.0 |
+| Gradle | 9.8.2 |
+| Compose BOM | 2026.09.00 |
+| Material 3 | 1.4.0 |
+| Room | 2.8.5 (KSP 2.3.13) |
 | osmdroid | 6.1.20 |
-| play-services-location | 21.3.0 |
-| minSdk / targetSdk | 26 / 35 |
+| play-services-location | 21.4.0 |
+| minSdk / targetSdk / compileSdk | 26 / 36 / 37 |
+
+> **AGP 9 notu:** AGP 9 Kotlin'i kendisi derler (*built-in Kotlin*), bu yüzden
+> `org.jetbrains.kotlin.android` plugin'i artık uygulanmıyor. AGP 9.4 varsayılan
+> olarak KGP 2.2.10'a bağlıdır; Kotlin 2.4.21 ve KSP 2.3.13 sürümleri kök
+> `build.gradle.kts` içindeki `buildscript` classpath'inde sabitlenir.
+>
+> **compileSdk 37 notu:** Compose BOM 2026.09.00 (Compose 1.12.1) derleme için
+> en az API 37 ister. `targetSdk` 36'da kalır — bu, çalışma zamanı davranışını
+> belirler ve derleme SDK'sından bağımsızdır.
 
 ---
 

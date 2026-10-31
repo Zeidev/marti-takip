@@ -2,7 +2,7 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // No kotlin-android plugin: AGP 9 has built-in Kotlin support.
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
@@ -32,12 +32,12 @@ val hasReleaseSigning = releaseKeystorePath != null &&
 
 android {
     namespace = "com.martitakip.app"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.martitakip.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
@@ -94,13 +94,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=kotlin.RequiresOptIn",
-            "-Xjvm-default=all",
-        )
-    }
 
     buildFeatures {
         compose = true

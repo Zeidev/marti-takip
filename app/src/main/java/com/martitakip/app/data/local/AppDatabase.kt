@@ -53,7 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("PRAGMA foreign_keys = ON")
                     }
                 })
-                .fallbackToDestructiveMigrationOnDowngrade()
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                 .build()
     }
 }

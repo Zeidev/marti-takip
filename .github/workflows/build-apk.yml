@@ -52,7 +52,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platforms;android-35 build-tools;35.0.0"
+          packages: "platforms;android-37.2 build-tools;37.0.0"
 
       - name: Restore Gradle wrapper
         run: |
@@ -96,7 +96,7 @@ jobs:
 
           # Refuse to publish an APK that cannot be installed. An unsigned
           # release would look fine in the artifact list but fail on the phone.
-          if ! "${ANDROID_HOME}/build-tools/35.0.0/apksigner" verify "${APK_PATH}"; then
+          if ! "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify "${APK_PATH}"; then
             echo "::error::${APK_PATH} is not signed and cannot be installed."
             exit 1
           fi

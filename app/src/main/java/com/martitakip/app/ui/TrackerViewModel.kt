@@ -562,7 +562,7 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
     fun buildShareText(state: TrackerUiState = _uiState.value): String {
         val dateLabel = runCatching {
             LocalDate.parse(state.dayKey)
-                .format(DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", Locale("tr", "TR")))
+                .format(DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", Locale.forLanguageTag("tr-TR")))
         }.getOrElse { state.dayKey }
 
         val goalLine = if (state.dailyGoal > 0) {
@@ -689,7 +689,7 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
         /** How many recent taps the tracker screen lists. */
         const val RECENT_SWAP_LIMIT = 8
 
-        private val TURKISH = Locale("tr", "TR")
+        private val TURKISH = Locale.forLanguageTag("tr-TR")
         private val dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", TURKISH)
         private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", TURKISH)
 
