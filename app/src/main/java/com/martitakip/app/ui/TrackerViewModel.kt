@@ -75,6 +75,14 @@ data class TrackerUiState(
     val recentSwaps: List<SwapEvent> = emptyList(),
     /** All live swaps of the day, used to compute the region breakdown. */
     val liveDayEvents: List<SwapEvent> = emptyList(),
+    /**
+     * Region breakdown, most active first.
+     *
+     * Computed once when the day's rows change rather than in a `get()`: the
+     * nearest-centre search over 28 regions would otherwise re-run on every
+     * recomposition of every card that reads it.
+     */
+    val regionSummaries: List<RegionSummary> = emptyList(),
     /** Live swaps bucketed by local hour. */
     val hourBuckets: List<HourBucket> = emptyList(),
     /** First/last swap of the live shift. */
@@ -132,15 +140,6 @@ data class TrackerUiState(
     /** Busiest hour bucket of the day, if any. */
     val peakHour: HourBucket?
         get() = hourBuckets.maxByOrNull { it.totalCount }?.takeIf { it.totalCount > 0 }
-
-    /**
-     * Region breakdown, most active first.
-     *
-     * Computed once in the ViewModel when the day's rows change, not here: a
-     * `get()` would re-run the 28-region nearest-centre search on every
-     * recomposition of every card that reads it.
-     */
-    val regionSummaries: List<RegionSummary> = emptyList()
 
     /** True when today has more swaps than the same point of the previous day. */
     val trendDelta: Int
