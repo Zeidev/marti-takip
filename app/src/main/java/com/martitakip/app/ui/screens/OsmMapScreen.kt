@@ -96,25 +96,44 @@ fun OsmMapScreen(
     // MapView is inflated.
     remember { configureOsmdroid(context) }
 
-    var mapView by remember { mutableStateOf<MapView?>(null) }
     var hasCenteredOnce by remember { mutableStateOf(false) }
 
+    /**
+     * The MapView is created exactly once for the lifetime of this composable
+     * and is *never* detached while the screen is merely recomposing.
+     *
+     * This is critical: `MapView.onDetach()` calls `mTileProvider.detach()`,
+     * which permanently shuts down the tile downloader's thread pools. A
+     * detached MapView can still be laid out and drawn - so the screen looks
+     * "alive" with the empty grey grid - but every subsequent tile request is
+     * rejected with `RejectedExecutionException` and the map stays blank
+     * forever.
+     *
+     * The previous implementation kept the view in a `mutableStateOf` and used
+     * it as a `DisposableEffect` key, so the assignment of the freshly created
+     * view immediately re-ran the effect and detached the very MapView it had
+     * just installed. Keeping the reference in a plain `remember` (which is not
+     * observable) removes that self-inflicted detach.
+     */
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, mapView) {
-        val view = mapView
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> view?.onResume()
-                Lifecycle.Event.ON_PAUSE -> view?.onPause()
-                Lifecycle.Event.ON_DESTROY -> view?.onDetach()
+                Lifecycle.Event.ON_RESUME -> mapViewRef.value?.onResume()
+                Lifecycle.Event.ON_PAUSE -> mapViewRef.value?.onPause()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            view?.onPause()
-            view?.onDetach()
+            // Leaving the map screen for real: pause and release the tile
+            // provider so its threads and the tile cache handle are freed.
+            mapViewRef.value?.onPause()
+            mapViewRef.value?.onDetach()
+            mapViewRef.value = null
         }
     }
 
@@ -134,13 +153,21 @@ fun OsmMapScreen(
                     controller.setZoom(13.0)
                     // Istanbul as a neutral, on-brand default before any fix.
                     controller.setCenter(GeoPoint(41.0082, 28.9784))
-                    mapView = this
+                    mapViewRef.value = this
                 }
             },
             update = { view ->
-                view.overlays.removeAll { it is HeatmapOverlay }
-                view.overlays.add(HeatmapOverlay(state.points))
-                view.invalidate()
+                // Rebuild the overlay only when the dataset actually changed.
+                // Running this on every recomposition (e.g. each snackbar or
+                // range-chip toggle) would detach and re-add the overlay, force
+                // a full map redraw and, on slow devices, visibly blank the
+                // tiles while the map is being panned.
+                val current = view.overlays.filterIsInstance<HeatmapOverlay>().firstOrNull()
+                if (current == null || current.data !== state.points) {
+                    current?.let { view.overlays.remove(it) }
+                    view.overlays.add(HeatmapOverlay(state.points))
+                    view.invalidate()
+                }
             },
         )
 
@@ -172,7 +199,7 @@ fun OsmMapScreen(
         FloatingActionButton(
             onClick = {
                 val points = state.points
-                val view = mapView
+                val view = mapViewRef.value
                 if (view != null && points.isNotEmpty()) {
                     val avgLat = points.sumOf { it.latitude ?: 0.0 } / points.size
                     val avgLng = points.sumOf { it.longitude ?: 0.0 } / points.size
@@ -243,7 +270,7 @@ fun OsmMapScreen(
 
     // Auto-frame the data once per dataset, without fighting the user's pans.
     LaunchedEffect(state.points.size, hasCenteredOnce) {
-        val view = mapView
+        val view = mapViewRef.value
         if (view != null && !hasCenteredOnce && state.points.isNotEmpty()) {
             val points = state.points
             val avgLat = points.sumOf { it.latitude ?: 0.0 } / points.size
@@ -474,6 +501,9 @@ private fun LegendRow(color: Color, label: String) {
 private class HeatmapOverlay(
     private val points: List<SwapEvent>,
 ) : Overlay() {
+
+    /** Identity of the dataset this overlay was built from. */
+    val data: List<SwapEvent> get() = points
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
