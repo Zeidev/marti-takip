@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PedalBike
@@ -64,6 +65,10 @@ import com.martitakip.app.ui.TrackerViewModel.Companion.formatMoney
 import com.martitakip.app.ui.components.CounterActionCard
 import com.martitakip.app.ui.components.GoalProgressCard
 import com.martitakip.app.ui.components.GpsStatusChip
+import com.martitakip.app.ui.components.MotivationBanner
+import com.martitakip.app.ui.components.PaceCard
+import com.martitakip.app.ui.components.RegionBreakdownCard
+import com.martitakip.app.ui.components.TrendCard
 import com.martitakip.app.ui.theme.MartiTakipTheme
 import com.martitakip.app.ui.theme.MartiTheme
 import java.time.LocalDate
@@ -88,6 +93,7 @@ fun MainTrackerScreen(
     onOpenHistory: () -> Unit,
     onShare: () -> Unit,
     onArchiveShift: () -> Unit,
+    onClearToday: () -> Unit,
     onRequestPermission: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -272,12 +278,49 @@ fun MainTrackerScreen(
                 )
             }
 
+            // --- Motivation ------------------------------------------------
+            item(key = "motivation") {
+                MotivationBanner(
+                    totalCount = state.totalCount,
+                    goal = state.dailyGoal,
+                    progress = state.goalProgress,
+                    swapsPerHour = state.swapsPerHour,
+                )
+            }
+
+            // --- Pace ------------------------------------------------------
+            item(key = "pace") {
+                PaceCard(
+                    swapsPerHour = state.swapsPerHour,
+                    earningsPerHour = state.earningsPerHour,
+                    minutesPerSwap = state.minutesPerSwap,
+                    activeMinutes = state.activeMinutes,
+                    peakHour = state.peakHour,
+                    hourBuckets = state.hourBuckets,
+                )
+            }
+
+            // --- Regions ---------------------------------------------------
+            item(key = "regions") {
+                RegionBreakdownCard(regions = state.regionSummaries)
+            }
+
+            // --- Trend -----------------------------------------------------
+            item(key = "trend") {
+                TrendCard(
+                    days = state.recentDays,
+                    maxCount = state.trendMax,
+                    delta = state.trendDelta,
+                )
+            }
+
             // --- Shift actions --------------------------------------------
             item(key = "actions") {
                 ShiftActions(
                     state = state,
                     onArchiveShift = onArchiveShift,
                     onShare = onShare,
+                    onClearToday = onClearToday,
                 )
             }
 
@@ -439,6 +482,7 @@ private fun ShiftActions(
     state: TrackerUiState,
     onArchiveShift: () -> Unit,
     onShare: () -> Unit,
+    onClearToday: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         FilledTonalButton(
@@ -473,6 +517,26 @@ private fun ShiftActions(
             )
             Spacer(Modifier.width(8.dp))
             Text("Raporu paylaş (WhatsApp / Telegram)")
+        }
+        if (!state.isEmptyDay) {
+            TextButton(
+                onClick = onClearToday,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.DeleteSweep,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Bugünü arşivlemeden sil",
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
         if (state.isEmptyDay) {
             Text(
@@ -565,6 +629,7 @@ private fun MainTrackerPreview() {
             onOpenHistory = {},
             onShare = {},
             onArchiveShift = {},
+            onClearToday = {},
             onRequestPermission = {},
         )
     }

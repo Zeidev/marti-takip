@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Undo
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -55,6 +56,7 @@ fun ShiftHistorySheet(
     shifts: List<ShiftHistoryItem>,
     onDismiss: () -> Unit,
     onShareShift: (ShiftHistoryItem) -> Unit,
+    onRestoreShift: (ShiftHistoryItem) -> Unit,
 ) {
     if (!visible) return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -119,7 +121,11 @@ fun ShiftHistorySheet(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(shifts, key = { it.shiftId }) { shift ->
-                        ShiftRow(shift = shift, onShare = { onShareShift(shift) })
+                        ShiftRow(
+                            shift = shift,
+                            onShare = { onShareShift(shift) },
+                            onRestore = { onRestoreShift(shift) },
+                        )
                     }
                 }
             }
@@ -131,6 +137,7 @@ fun ShiftHistorySheet(
 private fun ShiftRow(
     shift: ShiftHistoryItem,
     onShare: () -> Unit,
+    onRestore: () -> Unit,
 ) {
     val vehicle = MartiTheme.vehicle
     Card(
@@ -168,6 +175,14 @@ private fun ShiftRow(
                         text = "${formatDuration(shift.startedAt, shift.endedAt)} · ${shift.eventCount} kayıt",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onRestore) {
+                    Icon(
+                        imageVector = Icons.Rounded.Undo,
+                        contentDescription = "Bu vardiyayı geri al",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
                 IconButton(onClick = onShare) {

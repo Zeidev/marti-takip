@@ -24,6 +24,8 @@ data class UserSettings(
     val dailyGoal: Int = DEFAULT_DAILY_GOAL,
     val hapticsEnabled: Boolean = true,
     val autoGps: Boolean = true,
+    /** Short confirmation beep on every recorded swap. */
+    val soundEnabled: Boolean = true,
 ) {
     fun priceFor(type: com.martitakip.app.data.local.VehicleType): Double = when (type) {
         com.martitakip.app.data.local.VehicleType.SCOOTER -> scooterPrice
@@ -72,6 +74,7 @@ class SettingsRepository(private val context: Context) {
         val DAILY_GOAL = intPreferencesKey("daily_goal")
         val HAPTICS_ENABLED = intPreferencesKey("haptics_enabled")
         val AUTO_GPS = intPreferencesKey("auto_gps")
+        val SOUND_ENABLED = intPreferencesKey("sound_enabled")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
@@ -81,6 +84,7 @@ class SettingsRepository(private val context: Context) {
             dailyGoal = prefs[Keys.DAILY_GOAL] ?: UserSettings.DEFAULT_DAILY_GOAL,
             hapticsEnabled = (prefs[Keys.HAPTICS_ENABLED] ?: 1) == 1,
             autoGps = (prefs[Keys.AUTO_GPS] ?: 1) == 1,
+            soundEnabled = (prefs[Keys.SOUND_ENABLED] ?: 1) == 1,
         )
     }
 
@@ -105,6 +109,10 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { prefs -> prefs[Keys.AUTO_GPS] = if (enabled) 1 else 0 }
     }
 
+    suspend fun setSoundEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs -> prefs[Keys.SOUND_ENABLED] = if (enabled) 1 else 0 }
+    }
+
     suspend fun save(settings: UserSettings) {
         context.settingsDataStore.edit { prefs ->
             prefs[Keys.SCOOTER_PRICE] = UserSettings.normalizePrice(settings.scooterPrice)
@@ -112,6 +120,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.DAILY_GOAL] = settings.dailyGoal.coerceIn(UserSettings.MIN_GOAL, UserSettings.MAX_GOAL)
             prefs[Keys.HAPTICS_ENABLED] = if (settings.hapticsEnabled) 1 else 0
             prefs[Keys.AUTO_GPS] = if (settings.autoGps) 1 else 0
+            prefs[Keys.SOUND_ENABLED] = if (settings.soundEnabled) 1 else 0
         }
     }
 

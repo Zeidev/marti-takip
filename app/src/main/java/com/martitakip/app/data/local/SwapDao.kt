@@ -36,6 +36,32 @@ data class LifetimeTotals(
     val totalCount: Int get() = scooterCount + mopedCount
 }
 
+/** Swap count for one hour of the day (0..23), used by the pace card. */
+data class HourBucket(
+    val hour: Int,
+    val scooterCount: Int,
+    val mopedCount: Int,
+) {
+    val totalCount: Int get() = scooterCount + mopedCount
+}
+
+/** One day of the recent trend chart. */
+data class DayBucket(
+    val dayKey: String,
+    val scooterCount: Int,
+    val mopedCount: Int,
+    val earnings: Double,
+) {
+    val totalCount: Int get() = scooterCount + mopedCount
+}
+
+/** First and last swap of a live shift, used to compute the active duration. */
+data class ShiftSpan(
+    val firstTimestamp: Long,
+    val lastTimestamp: Long,
+    val swapCount: Int,
+)
+
 /** One archived shift, ready to be rendered in the history sheet. */
 data class ShiftSummary(
     val shiftId: Long,
@@ -102,6 +128,10 @@ interface SwapDao {
 
     @Delete
     suspend fun delete(event: SwapEvent)
+
+    /** Drops the live rows of a day without archiving them (destructive reset). */
+    @Query("DELETE FROM swap_events WHERE dayKey = :dayKey AND shiftId IS NULL")
+    suspend fun deleteLiveDay(dayKey: String): Int
 
     @Query("DELETE FROM swap_events")
     suspend fun deleteAll(): Int
@@ -196,6 +226,74 @@ interface SwapDao {
     // Archive reads
     // ---------------------------------------------------------------------
 
+    // ---------------------------------------------------------------------
+    // Pace & trend reads
+    // ---------------------------------------------------------------------
+
+    /**
+     * Live swaps bucketed by local hour.
+     *
+     * SQLite has no timezone support, so the hour is derived from the stored
+     * epoch millis with a fixed offset passed in from Kotlin. This keeps the
+     * bucketing consistent with the `dayKey` used everywhere else.
+     */
+    @Query(
+        """
+        SELECT
+            CAST(((timestamp / 1000 + :offsetSeconds) % 86400) / 3600 AS INTEGER) AS hour,
+            CAST(SUM(CASE WHEN type = 'SCOOTER' THEN 1 ELSE 0 END) AS INTEGER) AS scooterCount,
+            CAST(SUM(CASE WHEN type = 'MOPED' THEN 1 ELSE 0 END) AS INTEGER) AS mopedCount
+        FROM swap_events
+        WHERE dayKey = :dayKey AND shiftId IS NULL
+        GROUP BY hour
+        ORDER BY hour ASC
+        """,
+    )
+    fun observeHourBuckets(dayKey: String, offsetSeconds: Int): Flow<List<HourBucket>>
+
+    /** First/last live swap of the day, for the "active for X hours" figure. */
+    @Query(
+        """
+        SELECT
+            COALESCE(MIN(timestamp), 0) AS firstTimestamp,
+            COALESCE(MAX(timestamp), 0) AS lastTimestamp,
+            CAST(COUNT(*) AS INTEGER) AS swapCount
+        FROM swap_events
+        WHERE dayKey = :dayKey AND shiftId IS NULL
+        """,
+    )
+    fun observeShiftSpan(dayKey: String): Flow<ShiftSpan>
+
+    /** Daily totals for the trend chart, newest day first. */
+    @Query(
+        """
+        SELECT
+            dayKey AS dayKey,
+            CAST(SUM(CASE WHEN type = 'SCOOTER' THEN 1 ELSE 0 END) AS INTEGER) AS scooterCount,
+            CAST(SUM(CASE WHEN type = 'MOPED' THEN 1 ELSE 0 END) AS INTEGER) AS mopedCount,
+            COALESCE(SUM(earnings), 0.0) AS earnings
+        FROM swap_events
+        GROUP BY dayKey
+        ORDER BY dayKey DESC
+        LIMIT :limit
+        """,
+    )
+    fun observeRecentDays(limit: Int): Flow<List<DayBucket>>
+
+    /** Every swap of the live day, for region grouping in the ViewModel. */
+    @Query(
+        """
+        SELECT * FROM swap_events
+        WHERE dayKey = :dayKey AND shiftId IS NULL
+        ORDER BY timestamp ASC
+        """,
+    )
+    suspend fun getLiveDay(dayKey: String): List<SwapEvent>
+
+    // ---------------------------------------------------------------------
+    // Archive reads
+    // ---------------------------------------------------------------------
+
     /** One row per archived shift, newest first. */
     @Query(
         """
@@ -217,6 +315,21 @@ interface SwapDao {
 
     @Query("SELECT * FROM swap_events WHERE shiftId = :shiftId ORDER BY timestamp ASC")
     fun observeShiftEvents(shiftId: Long): Flow<List<SwapEvent>>
+
+    /** Number of rows in a shift, used to validate a restore. */
+    @Query("SELECT COUNT(*) FROM swap_events WHERE shiftId = :shiftId")
+    suspend fun countShift(shiftId: Long): Int
+
+    /**
+     * Un-archives a shift: clears its stamp so the rows become "live" again and
+     * feed the counters.
+     *
+     * Only meaningful when the shift belongs to the current day - restoring an
+     * old shift into today would silently inflate today's numbers, so the
+     * caller checks that first.
+     */
+    @Query("UPDATE swap_events SET shiftId = NULL WHERE shiftId = :shiftId")
+    suspend fun unarchiveShift(shiftId: Long): Int
 
     @Query("SELECT COALESCE(MAX(shiftId), 0) + 1 FROM swap_events")
     suspend fun nextShiftId(): Long

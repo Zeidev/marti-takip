@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.martitakip.app.data.local.AppDatabase
+import com.martitakip.app.data.local.DayBucket
+import com.martitakip.app.data.local.HourBucket
+import com.martitakip.app.data.local.ShiftSpan
 import com.martitakip.app.data.local.ShiftSummary
 import com.martitakip.app.data.local.SwapEvent
 import com.martitakip.app.data.local.VehicleType
@@ -12,10 +15,13 @@ import com.martitakip.app.data.settings.SettingsRepository
 import com.martitakip.app.data.settings.UserSettings
 import com.martitakip.app.location.LocationHelper
 import com.martitakip.app.location.SwapCoordinate
+import com.martitakip.app.util.RegionResolver
+import com.martitakip.app.util.RegionSummary
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -67,6 +73,21 @@ data class TrackerUiState(
     val historyOpen: Boolean = false,
     /** Newest-first slice of today's live swaps, for the "recent" list. */
     val recentSwaps: List<SwapEvent> = emptyList(),
+    /** All live swaps of the day, used to compute the region breakdown. */
+    val liveDayEvents: List<SwapEvent> = emptyList(),
+    /** Live swaps bucketed by local hour. */
+    val hourBuckets: List<HourBucket> = emptyList(),
+    /** First/last swap of the live shift. */
+    val shiftSpan: ShiftSpan = ShiftSpan(0L, 0L, 0),
+    /** Recent days for the trend chart, oldest first. */
+    val recentDays: List<DayBucket> = emptyList(),
+    val soundEnabled: Boolean = true,
+    /** Incremented every minute so the "active for" figure stays fresh. */
+    val clockTick: Long = 0L,
+    /** Non-null while the confirm-restore dialog is open. */
+    val pendingRestoreShiftId: Long? = null,
+    /** Restore/archive confirmation for the destructive clear action. */
+    val pendingClear: Boolean = false,
 ) {
     val totalCount: Int get() = scooterCount + mopedCount
 
@@ -85,6 +106,53 @@ data class TrackerUiState(
     val avgEarningPerSwap: Double get() = if (totalCount == 0) 0.0 else totalEarnings / totalCount
     val isEmptyDay: Boolean get() = totalCount == 0
     val hasPending: Boolean get() = pendingSwaps > 0
+
+    /**
+     * Minutes between the first and the last swap of the shift, plus one, so a
+     * single swap reports 1 minute instead of 0 and never divides by zero.
+     */
+    val activeMinutes: Long
+        get() {
+            val span = shiftSpan.lastTimestamp - shiftSpan.firstTimestamp
+            return if (shiftSpan.swapCount <= 1) 1L else (span / 60_000L).coerceAtLeast(1L)
+        }
+
+    /** Swaps per hour over the *active* part of the shift, not wall-clock. */
+    val swapsPerHour: Double
+        get() = if (totalCount == 0) 0.0 else totalCount * 60.0 / activeMinutes
+
+    /** Earnings per hour over the active part of the shift. */
+    val earningsPerHour: Double
+        get() = if (totalCount == 0) 0.0 else totalEarnings * 60.0 / activeMinutes
+
+    /** Minutes between swaps, the inverse of [swapsPerHour]. */
+    val minutesPerSwap: Double
+        get() = if (totalCount == 0) 0.0 else activeMinutes.toDouble() / totalCount
+
+    /** Busiest hour bucket of the day, if any. */
+    val peakHour: HourBucket?
+        get() = hourBuckets.maxByOrNull { it.totalCount }?.takeIf { it.totalCount > 0 }
+
+    /**
+     * Region breakdown, most active first.
+     *
+     * Computed once in the ViewModel when the day's rows change, not here: a
+     * `get()` would re-run the 28-region nearest-centre search on every
+     * recomposition of every card that reads it.
+     */
+    val regionSummaries: List<RegionSummary> = emptyList()
+
+    /** True when today has more swaps than the same point of the previous day. */
+    val trendDelta: Int
+        get() {
+            val today = recentDays.lastOrNull() ?: return 0
+            val yesterday = recentDays.dropLast(1).lastOrNull() ?: return 0
+            return today.totalCount - yesterday.totalCount
+        }
+
+    /** 0..1 bar height for the trend chart. */
+    val trendMax: Int
+        get() = (recentDays.maxOfOrNull { it.totalCount } ?: 0).coerceAtLeast(1)
 }
 
 /** One-shot signals that must not be replayed on configuration change. */
@@ -97,6 +165,8 @@ sealed interface TrackerEvent {
         val shiftId: Long,
     ) : TrackerEvent
     data object NothingToArchive : TrackerEvent
+    data class ShiftRestored(val shiftId: Long, val rowCount: Int) : TrackerEvent
+    data object RestoreFailed : TrackerEvent
     data class Message(val text: String) : TrackerEvent
     data class ShareRequest(val text: String) : TrackerEvent
     data object GoalReached : TrackerEvent
@@ -201,6 +271,7 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
         observeSettings()
         observeMap()
         observeHistory()
+        observePaceAndTrend()
         refreshPermissionState()
     }
 
@@ -252,6 +323,7 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
                         dailyGoal = settings.dailyGoal,
                         hapticsEnabled = settings.hapticsEnabled,
                         autoGpsEnabled = settings.autoGps,
+                        soundEnabled = settings.soundEnabled,
                     )
                 }
                 // Lowering the goal below today's count should still celebrate,
@@ -298,6 +370,63 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
                         shiftCount = totals.shiftCount,
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * Pace, region and trend data.
+     *
+     * All three are derived from the same live-day rows, so they share a single
+     * collector instead of opening three separate Room observers.
+     */
+    private fun observePaceAndTrend() {
+        val offsetSeconds = java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000
+
+        viewModelScope.launch {
+            dayKeyFlow.flatMapLatest { day ->
+                repository.observeHourBuckets(day, offsetSeconds)
+            }.collect { buckets ->
+                _uiState.update { it.copy(hourBuckets = buckets) }
+            }
+        }
+
+        viewModelScope.launch {
+            dayKeyFlow.flatMapLatest { day ->
+                repository.observeShiftSpan(day)
+            }.collect { span ->
+                _uiState.update { it.copy(shiftSpan = span) }
+            }
+        }
+
+        viewModelScope.launch {
+            repository.observeRecentDays(TREND_DAYS).collect { days ->
+                // Room returns newest first; the chart reads left-to-right.
+                _uiState.update { it.copy(recentDays = days.reversed()) }
+            }
+        }
+
+        // Region grouping needs the raw rows; recompute whenever the day
+        // changes rather than on every single tap.
+        viewModelScope.launch {
+            dayKeyFlow.flatMapLatest { day ->
+                repository.observeLiveEvents(day)
+            }.collect { events ->
+                _uiState.update {
+                    it.copy(
+                        liveDayEvents = events,
+                        regionSummaries = RegionResolver.summarize(events),
+                    )
+                }
+            }
+        }
+
+        // Keeps "active for 2h 15dk" and the projection moving even when the
+        // operator does not tap anything for a while.
+        viewModelScope.launch {
+            while (true) {
+                delay(60_000L)
+                _uiState.update { it.copy(clockTick = it.clockTick + 1) }
             }
         }
     }
@@ -537,10 +666,82 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { settingsRepository.setAutoGpsEnabled(enabled) }
     }
 
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setSoundEnabled(enabled) }
+    }
+
     fun resetSettingsToDefaults() {
         viewModelScope.launch {
             settingsRepository.resetToDefaults()
             emitEvent(TrackerEvent.Message("Ayarlar varsayılana döndürüldü."))
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Archive restore
+    // -----------------------------------------------------------------------
+
+    /** Opens the "are you sure?" dialog for restoring an archived shift. */
+    fun requestRestoreShift(shiftId: Long) =
+        _uiState.update { it.copy(pendingRestoreShiftId = shiftId) }
+
+    fun cancelRestoreShift() = _uiState.update { it.copy(pendingRestoreShiftId = null) }
+
+    /**
+     * Restores an archived shift so its rows become the live shift again.
+     *
+     * This is the safety net for a mis-tap on "Vardiyayı Kaydet & Sıfırla".
+     * The rows were only *stamped* with a shift id, never moved, so clearing
+     * the stamp brings them straight back into the counters, the goal and the
+     * heat map - no data is rebuilt and nothing can be lost.
+     */
+    fun confirmRestoreShift() {
+        val shiftId = _uiState.value.pendingRestoreShiftId ?: return
+        _uiState.update { it.copy(pendingRestoreShiftId = null) }
+        viewModelScope.launch {
+            try {
+                when (val result = repository.restoreShift(shiftId)) {
+                    is SwapRepository.RestoreResult.Restored ->
+                        emitEvent(TrackerEvent.ShiftRestored(shiftId, result.rowCount))
+                    SwapRepository.RestoreResult.NotFound ->
+                        emitEvent(TrackerEvent.RestoreFailed)
+                }
+            } catch (error: Exception) {
+                emitEvent(
+                    TrackerEvent.Message(
+                        "Vardiya geri alınamadı: ${error.message ?: "bilinmeyen hata"}",
+                    ),
+                )
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Destructive clear
+    // -----------------------------------------------------------------------
+
+    fun requestClearToday() = _uiState.update { it.copy(pendingClear = true) }
+
+    fun cancelClearToday() = _uiState.update { it.copy(pendingClear = false) }
+
+    /**
+     * Deletes today's live rows without archiving them.
+     *
+     * Distinct from "Vardiyayı Kaydet": that one keeps the history, this one
+     * throws the day away (e.g. all taps were test taps). It is behind a
+     * confirmation dialog precisely because it is irreversible.
+     */
+    fun confirmClearToday() {
+        _uiState.update { it.copy(pendingClear = false) }
+        viewModelScope.launch {
+            val removed = repository.discardLiveDay(dayKeyFlow.value)
+            emitEvent(
+                if (removed > 0) {
+                    TrackerEvent.Message("$removed değişim silindi, sayaç sıfırlandı.")
+                } else {
+                    TrackerEvent.Message("Silinecek kayıt yok.")
+                },
+            )
         }
     }
 
@@ -688,6 +889,9 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
     companion object {
         /** How many recent taps the tracker screen lists. */
         const val RECENT_SWAP_LIMIT = 8
+
+        /** Days shown in the trend chart. */
+        const val TREND_DAYS = 14
 
         private val TURKISH = Locale.forLanguageTag("tr-TR")
         private val dateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", TURKISH)

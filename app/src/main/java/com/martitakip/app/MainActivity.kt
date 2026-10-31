@@ -17,6 +17,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -42,11 +43,14 @@ import com.martitakip.app.data.local.VehicleType
 import com.martitakip.app.data.settings.UserSettings
 import com.martitakip.app.ui.TrackerEvent
 import com.martitakip.app.ui.TrackerViewModel
+import com.martitakip.app.ui.screens.ClearTodayDialog
+import com.martitakip.app.ui.screens.RestoreShiftDialog
 import com.martitakip.app.ui.screens.SettingsDialog
 import com.martitakip.app.ui.screens.ShiftHistorySheet
 import com.martitakip.app.ui.screens.TrackerAppShell
 import com.martitakip.app.ui.screens.TrackerDestination
 import com.martitakip.app.ui.theme.MartiTakipTheme
+import com.martitakip.app.util.SoundFeedback
 
 /**
  * Single-activity host.
@@ -117,6 +121,13 @@ private fun TrackerApp(
     val haptics = LocalHapticFeedback.current
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Sound pool is tied to the composition, not the Activity, so it is
+    // released as soon as the UI goes away.
+    val soundFeedback = remember { SoundFeedback(context) }
+    DisposableEffect(soundFeedback) {
+        onDispose { soundFeedback.release() }
+    }
+
     val trackerState by viewModel.uiState.collectAsStateWithLifecycle()
     val mapState by viewModel.mapState.collectAsStateWithLifecycle()
     val mapRangeDays by viewModel.mapRangeDays.collectAsStateWithLifecycle()
@@ -156,10 +167,14 @@ private fun TrackerApp(
             when (event) {
                 is TrackerEvent.SwapRecorded -> {
                     if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (viewModel.uiState.value.soundEnabled) soundFeedback.playConfirm()
                 }
 
                 is TrackerEvent.SwapUndone -> {
                     if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    if (event.hadSomethingToUndo && viewModel.uiState.value.soundEnabled) {
+                        soundFeedback.playUndo()
+                    }
                     if (!event.hadSomethingToUndo) {
                         scope.launch {
                             snackbarHostState.showSnackbar(
@@ -184,6 +199,24 @@ private fun TrackerApp(
                                 ?.let(viewModel::onShareShift)
                         }
                     }
+                }
+
+                is TrackerEvent.ShiftRestored -> {
+                    if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "#${event.shiftId} vardiyası geri alındı " +
+                                "(${event.rowCount} değişim sayaca döndü).",
+                            duration = SnackbarDuration.Long,
+                        )
+                    }
+                }
+
+                TrackerEvent.RestoreFailed -> scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Geri alınacak vardiya bulunamadı.",
+                        duration = SnackbarDuration.Short,
+                    )
                 }
 
                 TrackerEvent.NothingToArchive -> scope.launch {
@@ -230,6 +263,7 @@ private fun TrackerApp(
             onShare = viewModel::onShareToday,
             onShareMapSummary = viewModel::onShareLifetime,
             onArchiveShift = viewModel::onArchiveShift,
+            onClearToday = viewModel::requestClearToday,
             onRequestPermission = onRequestLocationPermission,
         )
 
@@ -251,11 +285,13 @@ private fun TrackerApp(
             dailyGoal = trackerState.dailyGoal,
             hapticsEnabled = trackerState.hapticsEnabled,
             autoGps = trackerState.autoGpsEnabled,
+            soundEnabled = trackerState.soundEnabled,
         ),
         onDismiss = viewModel::closeSettings,
         onSave = viewModel::saveSettings,
         onHapticsChanged = viewModel::setHapticsEnabled,
         onAutoGpsChanged = viewModel::setAutoGpsEnabled,
+        onSoundChanged = viewModel::setSoundEnabled,
         onResetToDefaults = viewModel::resetSettingsToDefaults,
         onExportCsv = {
             viewModel.closeSettings()
@@ -268,6 +304,22 @@ private fun TrackerApp(
         shifts = history,
         onDismiss = viewModel::closeHistory,
         onShareShift = viewModel::onShareShift,
+        onRestoreShift = { viewModel.requestRestoreShift(it.shiftId) },
+    )
+
+    RestoreShiftDialog(
+        visible = trackerState.pendingRestoreShiftId != null,
+        shiftId = trackerState.pendingRestoreShiftId ?: 0L,
+        onConfirm = viewModel::confirmRestoreShift,
+        onDismiss = viewModel::cancelRestoreShift,
+    )
+
+    ClearTodayDialog(
+        visible = trackerState.pendingClear,
+        swapCount = trackerState.totalCount,
+        earnings = trackerState.totalEarnings,
+        onConfirm = viewModel::confirmClearToday,
+        onDismiss = viewModel::cancelClearToday,
     )
 }
 

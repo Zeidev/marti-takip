@@ -20,6 +20,13 @@ Kotlin + Jetpack Compose + Material 3 · Room (SQLite) · OpenStreetMap · Tek s
 | **Isı haritası** | OpenStreetMap üzerinde Scooter = 🟢 yeşil, Moped = 🟠 turuncu yarı saydam daireler. Zaman aralığı filtresi (Bugün / 7 / 30 / Tümü). |
 | **Arşiv** | Vardiya geçmişi alt sayfası; her vardiya için süre, adet, kazanç ve paylaş butonu. |
 | **CSV dışa aktarım** | Tüm kayıtlar tek dokunuşla CSV olarak paylaşılır (cihazda yedek). |
+| **Saatlik hız** | Değişim/saat, kazanç/saat, dk/değişim ve 08–22 saat şeridi. Hız, vardiyanın *aktif* süresi üzerinden hesaplanır. |
+| **Bölge kırılımı** | Değişimler yakınlık tabanlı çevrimdışı bölge çözümlemesiyle gruplanır (Kadıköy, Beşiktaş…). Ağ gerekmez. |
+| **Trend** | Son 14 günün günlük değişim grafiği + düne göre fark. |
+| **Motivasyon** | İlerlemeye göre değişen kısa teşvik mesajı. |
+| **Sesli onay** | Her kayıtta kısa bip (ayarlardan kapatılabilir). |
+| **Arşivden geri alma** | Yanlışlıkla kaydedilen vardiya tek dokunuşla aktife döner. |
+| **Günü sil** | Arşivlemeden silme; onay diyaloğu ile korunur. |
 
 ---
 
@@ -40,6 +47,9 @@ com.martitakip.app
 │       └── SettingsRepository.kt # DataStore (fiyatlar, hedef, anahtarlar)
 ├── location/
 │   └── LocationHelper.kt         # Tek seferlik FusedLocation + cache fallback
+├── util/
+│   ├── RegionResolver.kt         # Çevrimdışı bölge çözümleme (28 merkez)
+│   └── SoundFeedback.kt          # SoundPool tabanlı kısa onay tonu
 └── ui/
     ├── TrackerViewModel.kt       # Tüm state (StateFlow) + olaylar (SharedFlow)
     ├── components/
@@ -147,8 +157,10 @@ Döşeme önbelleği disk üzerinde sınırlı tutulur (max 300 MB / trim 250 MB
 ./gradlew :app:testDebugUnitTest
 ```
 
-14 birim testi şunları doğrular: gün anahtarı hesaplama (gece yarısı sınırı dahil), fiyat
-normalizasyonu/yuvarlama, hedef ilerlemesi, araç tipi serileştirme, para/süre biçimlendirme.
+20 birim testi şunları doğrular: gün anahtarı hesaplama (gece yarısı sınırı dahil), fiyat
+normalizasyonu/yuvarlama, hedef ilerlemesi, araç tipi serileştirme, para/süre biçimlendirme,
+bölge çözümleme (Kadıköy eşleşmesi, uzak noktada "Diğer", koordinatsız kayıtlar, Haversine
+mesafesi ve gruplama sıralaması).
 
 ---
 

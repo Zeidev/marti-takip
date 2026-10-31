@@ -71,6 +71,7 @@ fun TrackerAppShell(
     onShare: () -> Unit,
     onShareMapSummary: () -> Unit,
     onArchiveShift: () -> Unit,
+    onClearToday: () -> Unit,
     onRequestPermission: () -> Unit,
 ) {
     Scaffold(
@@ -135,6 +136,7 @@ fun TrackerAppShell(
                         onOpenHistory = onOpenHistory,
                         onShare = onShare,
                         onArchiveShift = onArchiveShift,
+                        onClearToday = onClearToday,
                         onRequestPermission = onRequestPermission,
                     )
 

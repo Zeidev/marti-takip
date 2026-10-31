@@ -62,6 +62,7 @@ fun SettingsDialog(
     onSave: (scooterPrice: Double, mopedPrice: Double, dailyGoal: Int) -> Unit,
     onHapticsChanged: (Boolean) -> Unit,
     onAutoGpsChanged: (Boolean) -> Unit,
+    onSoundChanged: (Boolean) -> Unit,
     onResetToDefaults: () -> Unit,
     onExportCsv: () -> Unit,
 ) {
@@ -72,6 +73,7 @@ fun SettingsDialog(
     var goalText by remember { mutableStateOf(current.dailyGoal.toString()) }
     var haptics by remember { mutableStateOf(current.hapticsEnabled) }
     var autoGps by remember { mutableStateOf(current.autoGps) }
+    var sound by remember { mutableStateOf(current.soundEnabled) }
 
     // Re-seed the fields only when the dialog opens. Keying this on `current`
     // would wipe whatever the operator is typing every time a toggle writes
@@ -83,6 +85,7 @@ fun SettingsDialog(
             goalText = current.dailyGoal.toString()
             haptics = current.hapticsEnabled
             autoGps = current.autoGps
+            sound = current.soundEnabled
         }
     }
 
@@ -176,6 +179,15 @@ fun SettingsDialog(
                     onCheckedChange = {
                         autoGps = it
                         onAutoGpsChanged(it)
+                    },
+                )
+                ToggleRow(
+                    title = "Sesli onay",
+                    subtitle = "Her değişimde kısa bip (gürültülü sahada)",
+                    checked = sound,
+                    onCheckedChange = {
+                        sound = it
+                        onSoundChanged(it)
                     },
                 )
 
@@ -334,6 +346,7 @@ private fun SettingsDialogPreview() {
             onSave = { _, _, _ -> },
             onHapticsChanged = {},
             onAutoGpsChanged = {},
+            onSoundChanged = {},
             onResetToDefaults = {},
             onExportCsv = {},
         )

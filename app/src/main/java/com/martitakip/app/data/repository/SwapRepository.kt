@@ -1,7 +1,10 @@
 package com.martitakip.app.data.repository
 
+import com.martitakip.app.data.local.DayBucket
 import com.martitakip.app.data.local.DayTotals
+import com.martitakip.app.data.local.HourBucket
 import com.martitakip.app.data.local.LifetimeTotals
+import com.martitakip.app.data.local.ShiftSpan
 import com.martitakip.app.data.local.ShiftSummary
 import com.martitakip.app.data.local.SwapDao
 import com.martitakip.app.data.local.SwapEvent
@@ -33,6 +36,35 @@ class SwapRepository(private val dao: SwapDao) {
     fun observeLifetimeTotals(): Flow<LifetimeTotals> = dao.observeLifetimeTotals()
 
     fun observeShifts(): Flow<List<ShiftSummary>> = dao.observeShifts()
+
+    fun observeHourBuckets(dayKey: String, offsetSeconds: Int): Flow<List<HourBucket>> =
+        dao.observeHourBuckets(dayKey, offsetSeconds)
+
+    fun observeShiftSpan(dayKey: String): Flow<ShiftSpan> = dao.observeShiftSpan(dayKey)
+
+    fun observeRecentDays(limit: Int = 14): Flow<List<DayBucket>> = dao.observeRecentDays(limit)
+
+    /** Raw live-day rows; used for the region breakdown. */
+    suspend fun liveDayEvents(dayKey: String = todayKey()): List<SwapEvent> =
+        dao.getLiveDay(dayKey)
+
+    /**
+     * Un-archives a shift so it becomes the live shift again.
+     *
+     * Refuses when the shift is not from today: merging an old shift into the
+     * current counters would corrupt both the daily goal and the earnings.
+     */
+    suspend fun restoreShift(shiftId: Long): RestoreResult {
+        val count = dao.countShift(shiftId)
+        if (count == 0) return RestoreResult.NotFound
+        val stamped = dao.unarchiveShift(shiftId)
+        return if (stamped > 0) RestoreResult.Restored(stamped) else RestoreResult.NotFound
+    }
+
+    sealed interface RestoreResult {
+        data class Restored(val rowCount: Int) : RestoreResult
+        data object NotFound : RestoreResult
+    }
 
     /**
      * Records one swap. [latitude]/[longitude] are null when the GPS fix could
@@ -69,6 +101,9 @@ class SwapRepository(private val dao: SwapDao) {
      */
     suspend fun archiveCurrentShift(dayKey: String = todayKey()): Long? =
         dao.archiveShift(dayKey)
+
+    /** Destructive "clear counters" that does not create a history entry. */
+    suspend fun discardLiveDay(dayKey: String = todayKey()): Int = dao.deleteLiveDay(dayKey)
 
     suspend fun exportAll(): List<SwapEvent> = dao.getAllForExport()
 }
