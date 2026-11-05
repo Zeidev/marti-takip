@@ -5,10 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Map
@@ -122,7 +120,13 @@ fun TrackerAppShell(
                 )
             }
         },
-    ) { innerPadding ->
+    ) {
+        // The content lambda takes no arguments in this version of the suite:
+        // its layout reserves the space the navigation component occupies and
+        // owns the insets that go with it, so there is no `PaddingValues` for
+        // the shell to spend here. Adding padding of our own would either
+        // double a gap the layout already left or swallow a system-bar inset
+        // that the screens below still need.
         AnimatedContent(
             targetState = destination,
             transitionSpec = {
@@ -133,25 +137,9 @@ fun TrackerAppShell(
             },
             label = "destination",
         ) { target ->
-            // The shell owns the space its navigation component takes, and the
-            // screens keep owning the system-bar insets they already handle.
-            //
-            // `padding(innerPadding)` alone is not enough: both screens nest a
-            // `Scaffold`/inset modifier of their own, which would read the same
-            // status-bar inset a second time and leave a visible double gap.
-            // `consumeWindowInsets` marks the part the shell already spent, so
-            // each inset is applied exactly once - and when the navigation
-            // component is a rail (nothing overlays the content) the pair
-            // degrades to a no-op and the screens inset themselves as before.
-            val shellPadding = Modifier
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
-
             when (target) {
                 TrackerDestination.TRACKER -> Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(shellPadding),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     MainTrackerScreen(
@@ -173,14 +161,12 @@ fun TrackerAppShell(
                     )
                 }
 
-                TrackerDestination.MAP -> Box(modifier = shellPadding) {
-                    OsmMapScreen(
-                        state = mapState,
-                        rangeDays = mapRangeDays,
-                        onRangeChange = onMapRangeChange,
-                        onShareSummary = onShareMapSummary,
-                    )
-                }
+                TrackerDestination.MAP -> OsmMapScreen(
+                    state = mapState,
+                    rangeDays = mapRangeDays,
+                    onRangeChange = onMapRangeChange,
+                    onShareSummary = onShareMapSummary,
+                )
             }
         }
     }

@@ -103,6 +103,12 @@ fun CounterActionCard(
         label = "cardBorder",
     )
 
+    // The bump runs in the click handler's coroutine, which is *not* a
+    // composition: `MaterialTheme.motionScheme` and its spec factories are
+    // composable reads, so reading them there does not compile. Resolve the
+    // spec here, in the body, and let the coroutine capture the value.
+    val bumpGrowSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -124,7 +130,7 @@ fun CounterActionCard(
                 // spec and lands inside the tap-to-acknowledge window.
                 bump.animateTo(
                     targetValue = 1.06f,
-                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                    animationSpec = bumpGrowSpec,
                 )
                 // The settle back is deliberately *not* the motion scheme: a
                 // bouncy spring here is the whole point of the bump, and the
