@@ -177,11 +177,27 @@ private fun ShiftRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onRestore) {
+                IconButton(
+                    onClick = onRestore,
+                    // Only today's shift can come back. Restoring an older one
+                    // would un-stamp rows whose dayKey no longer matches the
+                    // counters, hiding those swaps from the history *and* from
+                    // the counters at once - so the action is refused here
+                    // rather than after the confirm dialog.
+                    enabled = shift.restorable,
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.Undo,
-                        contentDescription = "Bu vardiyayı geri al",
-                        tint = MaterialTheme.colorScheme.error,
+                        contentDescription = if (shift.restorable) {
+                            "Bu vardiyayı geri al"
+                        } else {
+                            "Sadece bugünün vardiyası geri alınabilir"
+                        },
+                        tint = if (shift.restorable) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        },
                         modifier = Modifier.size(20.dp),
                     )
                 }

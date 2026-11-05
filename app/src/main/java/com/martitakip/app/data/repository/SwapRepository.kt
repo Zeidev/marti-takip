@@ -51,19 +51,26 @@ class SwapRepository(private val dao: SwapDao) {
     /**
      * Un-archives a shift so it becomes the live shift again.
      *
-     * Refuses when the shift is not from today: merging an old shift into the
-     * current counters would corrupt both the daily goal and the earnings.
+     * Refuses when the shift is not from today. The guard is not cosmetic:
+     * a restored row is only visible again when its `dayKey` matches the day
+     * the counters are showing, so un-stamping an older shift would drop it out
+     * of the history sheet and out of every counter at once - the swaps would
+     * still be in the database but unreachable from the UI. The day filter
+     * lives in the SQL (see [SwapDao.unarchiveShift]); this method only
+     * distinguishes "no such shift" from "not today's shift" for the message.
      */
-    suspend fun restoreShift(shiftId: Long): RestoreResult {
-        val count = dao.countShift(shiftId)
-        if (count == 0) return RestoreResult.NotFound
-        val stamped = dao.unarchiveShift(shiftId)
-        return if (stamped > 0) RestoreResult.Restored(stamped) else RestoreResult.NotFound
+    suspend fun restoreShift(shiftId: Long, dayKey: String = todayKey()): RestoreResult {
+        val stamped = dao.unarchiveShift(shiftId, dayKey)
+        if (stamped > 0) return RestoreResult.Restored(stamped)
+        return if (dao.countShift(shiftId) > 0) RestoreResult.NotToday else RestoreResult.NotFound
     }
 
     sealed interface RestoreResult {
         data class Restored(val rowCount: Int) : RestoreResult
         data object NotFound : RestoreResult
+
+        /** The shift exists but belongs to an earlier day and cannot be restored. */
+        data object NotToday : RestoreResult
     }
 
     /**

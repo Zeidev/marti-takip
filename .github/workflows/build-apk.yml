@@ -70,9 +70,12 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'release' }}
         run: ./gradlew :app:assembleRelease --stacktrace
 
+      # No continue-on-error: a red unit test must block the APK. The archive's
+      # business rules (day bucketing, price snapshots, region grouping) are the
+      # only automated check this project has, so letting it fail silently made
+      # the whole suite decorative.
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
-        continue-on-error: true
 
       - name: Locate, verify and rename APK
         id: apk

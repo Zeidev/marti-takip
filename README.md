@@ -19,13 +19,13 @@ Kotlin + Jetpack Compose + Material 3 · Room (SQLite) · OpenStreetMap · Tek s
 | **Paylaşım** | Günlük özet WhatsApp / Telegram / herhangi bir uygulamaya `ACTION_SEND` Intent'i ile gider. |
 | **Isı haritası** | OpenStreetMap üzerinde Scooter = 🟢 yeşil, Moped = 🟠 turuncu yarı saydam daireler. Zaman aralığı filtresi (Bugün / 7 / 30 / Tümü). |
 | **Arşiv** | Vardiya geçmişi alt sayfası; her vardiya için süre, adet, kazanç ve paylaş butonu. |
-| **CSV dışa aktarım** | Tüm kayıtlar tek dokunuşla CSV olarak paylaşılır (cihazda yedek). |
+| **CSV dışa aktarım** | Tüm kayıtlar tek dokunuşla CSV olarak paylaşılır (cihazda yedek). Arşiv büyüdüğü için metin gövdesi yerine `FileProvider` üzerinden **dosya eki** olarak gönderilir. |
 | **Saatlik hız** | Değişim/saat, kazanç/saat, dk/değişim ve 08–22 saat şeridi. Hız, vardiyanın *aktif* süresi üzerinden hesaplanır. |
 | **Bölge kırılımı** | Değişimler yakınlık tabanlı çevrimdışı bölge çözümlemesiyle gruplanır (Kadıköy, Beşiktaş…). Ağ gerekmez. |
 | **Trend** | Son 14 günün günlük değişim grafiği + düne göre fark. |
 | **Motivasyon** | İlerlemeye göre değişen kısa teşvik mesajı. |
 | **Sesli onay** | Her kayıtta kısa bip (ayarlardan kapatılabilir). |
-| **Arşivden geri alma** | Yanlışlıkla kaydedilen vardiya tek dokunuşla aktife döner. |
+| **Arşivden geri alma** | Yanlışlıkla kaydedilen vardiya tek dokunuşla aktife döner. Yalnızca **bugünün** vardiyası geri alınabilir; eski günler geçmişte kalır. |
 | **Günü sil** | Arşivlemeden silme; onay diyaloğu ile korunur. |
 
 ---
@@ -92,6 +92,12 @@ Binlerce `Marker` nesnesi yerine tek bir `Overlay`, tüm noktaları zoom'a göre
 `requestLocationUpdates` yok, foreground service yok, wake lock yok. Sadece:
 önbellek taze ise (< 2 dk) anında kullan → değilse tek `CurrentLocationRequest`
 (6 sn sert zaman aşımı, `CancellationTokenSource` ile iptal edilebilir) → son çare eski önbellek.
+
+**6. Geri alma yalnızca bugünün vardiyasını kapsar.**
+Canlı sayaçlar `dayKey = bugün AND shiftId IS NULL` ile okunur. Eski bir vardiyanın
+damgası silinirse satırları ne bugünün sayacına girer ne de geçmiş listesinde kalır —
+uygulamada hiçbir yerde görünmez olur. Bu yüzden gün filtresi `unarchiveShift` SQL'inin
+içindedir, çağıranın kontrolüne bırakılmamıştır; eski günler için buton kapalıdır.
 
 ---
 

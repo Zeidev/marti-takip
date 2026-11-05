@@ -18,6 +18,7 @@ import com.martitakip.app.location.SwapCoordinate
 import com.martitakip.app.util.RegionResolver
 import com.martitakip.app.util.RegionSummary
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.BufferOverflow
@@ -30,12 +31,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -166,14 +169,46 @@ sealed interface TrackerEvent {
     data object NothingToArchive : TrackerEvent
     data class ShiftRestored(val shiftId: Long, val rowCount: Int) : TrackerEvent
     data object RestoreFailed : TrackerEvent
+
+    /** The shift exists but is not today's, so it was deliberately left alone. */
+    data object RestoreNotToday : TrackerEvent
     data class Message(val text: String) : TrackerEvent
-    data class ShareRequest(val text: String) : TrackerEvent
+
+    /**
+     * A payload the operator wants to push out of the app.
+     *
+     * [text] is what the other app receives as its body. When [fileName] is set
+     * the payload is large (today: the CSV archive) and must travel as an
+     * attachment instead: `EXTRA_TEXT` is carried in the Binder transaction,
+     * which tops out around 1 MB, so a long archive would make the share throw
+     * `TransactionTooLargeException`. The host writes [text] into a cache file
+     * and shares that file instead.
+     */
+    data class ShareRequest(
+        val text: String,
+        val fileName: String? = null,
+        val mimeType: String = "text/plain",
+        val subject: String = "Martı Takip - Günlük Rapor",
+    ) : TrackerEvent
+
     data object GoalReached : TrackerEvent
 }
 
 /** Row model used by the history sheet and the map legend. */
 data class ShiftHistoryItem(
     val shiftId: Long,
+    /** Day the shift was archived on (`yyyy-MM-dd`). */
+    val dayKey: String,
+    /**
+     * Whether "geri al" can still work on this shift.
+     *
+     * A shift is only restorable while it belongs to the day the counters are
+     * showing; un-stamping an older one would hide its swaps from both the
+     * counters and the history. Computed once per emission (against the current
+     * day key) rather than in a `get()`, so a day rollover cannot leave a stale
+     * button enabled.
+     */
+    val restorable: Boolean,
     val startedAt: Long,
     val endedAt: Long,
     val scooterCount: Int,
@@ -426,20 +461,35 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
             while (true) {
                 delay(60_000L)
                 _uiState.update { it.copy(clockTick = it.clockTick + 1) }
+
+                // Roll the day over even when the app is never paused (phone
+                // left on a mount overnight). Everything - the counters, the
+                // trend, and the history sheet's "geri al" gate - keys off this
+                // value, so leaving it stale would show yesterday's swaps as
+                // today's.
+                val today = repository.todayKey()
+                if (today != dayKeyFlow.value) {
+                    dayKeyFlow.value = today
+                    _uiState.update { it.copy(dayKey = today) }
+                }
             }
         }
     }
 
     private fun observeHistory() {
         viewModelScope.launch {
-            repository.observeShifts().collect { shifts ->
-                _history.value = shifts.map { it.toHistoryItem() }
-            }
+            // Combined with the day key so "geri al" is disabled the moment the
+            // day rolls over, instead of when the next shift happens to change.
+            combine(repository.observeShifts(), dayKeyFlow) { shifts, today ->
+                shifts.map { it.toHistoryItem(today) }
+            }.collect { _history.value = it }
         }
     }
 
-    private fun ShiftSummary.toHistoryItem() = ShiftHistoryItem(
+    private fun ShiftSummary.toHistoryItem(today: String) = ShiftHistoryItem(
         shiftId = shiftId,
+        dayKey = dayKey,
+        restorable = dayKey == today,
         startedAt = startedAt,
         endedAt = endedAt,
         scooterCount = scooterCount,
@@ -702,6 +752,8 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
                 when (val result = repository.restoreShift(shiftId)) {
                     is SwapRepository.RestoreResult.Restored ->
                         emitEvent(TrackerEvent.ShiftRestored(shiftId, result.rowCount))
+                    SwapRepository.RestoreResult.NotToday ->
+                        emitEvent(TrackerEvent.RestoreNotToday)
                     SwapRepository.RestoreResult.NotFound ->
                         emitEvent(TrackerEvent.RestoreFailed)
                 }
@@ -812,28 +864,45 @@ class TrackerViewModel(application: Application) : AndroidViewModel(application)
                 emitEvent(TrackerEvent.Message("Dışa aktarılacak kayıt yok."))
                 return@launch
             }
-            val csv = buildString {
-                appendLine("id,tarih,saat,tur,kazanc_tl,enlem,boylam,vardiya")
-                events.forEach { event ->
-                    val zoned = Instant.ofEpochMilli(event.timestamp).atZone(ZoneId.systemDefault())
-                    val date = zoned.toLocalDate().toString()
-                    val time = zoned.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
-                    append(event.id).append(',')
-                    append(date).append(',')
-                    append(time).append(',')
-                    append(event.type.name).append(',')
-                    append(String.format(Locale.US, "%.2f", event.earnings)).append(',')
-                    append(event.latitude?.let { String.format(Locale.US, "%.6f", it) } ?: "").append(',')
-                    append(event.longitude?.let { String.format(Locale.US, "%.6f", it) } ?: "").append(',')
-                    append(event.shiftId ?: "")
-                    appendLine()
-                }
-            }
+            // Formatting the whole archive is O(rows) string building and the
+            // rows only grow, so it must not run on the main thread.
+            val csv = withContext(Dispatchers.IO) { buildCsv(events) }
             emitEvent(
                 TrackerEvent.ShareRequest(
-                    text = "Martı Takip CSV dışa aktarımı (${events.size} kayıt)\n\n$csv",
+                    text = csv,
+                    // Must travel as an attachment: EXTRA_TEXT rides in the
+                    // Binder transaction, which tops out around 1 MB, and a
+                    // multi-year archive is well past that.
+                    fileName = "marti-takip-${dayKeyFlow.value}.csv",
+                    mimeType = "text/csv",
+                    subject = "Martı Takip CSV dışa aktarımı (${events.size} kayıt)",
                 ),
             )
+        }
+    }
+
+    /**
+     * Renders the archive as CSV (RFC 4180 style, `,` separated, one header).
+     *
+     * Coordinates are omitted rather than zero-filled when the swap had no fix,
+     * and the timestamp is written twice (local date and local time) so the file
+     * is readable in a spreadsheet without re-deriving the day key.
+     */
+    private fun buildCsv(events: List<SwapEvent>): String = buildString {
+        appendLine("id,tarih,saat,tur,kazanc_tl,enlem,boylam,vardiya")
+        val zone = ZoneId.systemDefault()
+        val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss")
+        events.forEach { event ->
+            val zoned = Instant.ofEpochMilli(event.timestamp).atZone(zone)
+            append(event.id).append(',')
+            append(zoned.toLocalDate()).append(',')
+            append(zoned.format(timeFormat)).append(',')
+            append(event.type.name).append(',')
+            append(String.format(Locale.US, "%.2f", event.earnings)).append(',')
+            append(event.latitude?.let { String.format(Locale.US, "%.6f", it) } ?: "").append(',')
+            append(event.longitude?.let { String.format(Locale.US, "%.6f", it) } ?: "").append(',')
+            append(event.shiftId ?: "")
+            appendLine()
         }
     }
 

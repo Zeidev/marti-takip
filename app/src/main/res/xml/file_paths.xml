@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paths the FileProvider is allowed to hand out.
+
+  Only `cacheDir/exports/` is exposed: it holds the generated CSV archive, which
+  is the one payload too large to travel in an Intent extra. The database and
+  the settings file are deliberately *not* shareable, so no `content://` URI
+  this app ever mints can point at the operator's data.
+-->
+<paths>
+    <cache-path
+        name="exports"
+        path="exports/" />
+</paths>

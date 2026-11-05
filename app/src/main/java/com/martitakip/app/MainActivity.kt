@@ -33,12 +33,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.martitakip.app.data.local.VehicleType
 import com.martitakip.app.data.settings.UserSettings
 import com.martitakip.app.ui.TrackerEvent
@@ -219,6 +222,14 @@ private fun TrackerApp(
                     )
                 }
 
+                TrackerEvent.RestoreNotToday -> scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Sadece bugünün vardiyası geri alınabilir. " +
+                            "Önceki günlerin kayıtları geçmişte kalır.",
+                        duration = SnackbarDuration.Long,
+                    )
+                }
+
                 TrackerEvent.NothingToArchive -> scope.launch {
                     snackbarHostState.showSnackbar(
                         message = "Kaydedilecek değişim yok. Önce +1 ile sayaç ekle.",
@@ -233,7 +244,7 @@ private fun TrackerApp(
                     )
                 }
 
-                is TrackerEvent.ShareRequest -> shareText(context, event.text)
+                is TrackerEvent.ShareRequest -> share(context, event)
 
                 TrackerEvent.GoalReached -> {
                     if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -324,17 +335,83 @@ private fun TrackerApp(
 }
 
 /**
- * Fires a `ACTION_SEND` chooser so the operator can push the daily summary to
- * WhatsApp, Telegram or anything else installed on the device.
+ * Fires an `ACTION_SEND` chooser so the operator can push a report to WhatsApp,
+ * Telegram or anything else installed on the device.
+ *
+ * Two transports, picked by the event:
+ *  - no [TrackerEvent.ShareRequest.fileName] -> the payload goes into
+ *    `EXTRA_TEXT` (short: a day's summary, one shift, the lifetime totals),
+ *  - a file name -> the payload is written to the app cache and shared as a
+ *    `content://` attachment. That is the only safe route for the CSV archive,
+ *    which grows without bound and would otherwise overflow the ~1 MB Binder
+ *    transaction limit and crash the share with
+ *    `TransactionTooLargeException`.
+ *
+ * A failure to write the cache file degrades to a text share rather than
+ * losing the export.
  */
-private fun shareText(context: android.content.Context, text: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-        putExtra(Intent.EXTRA_SUBJECT, "Martı Takip - Günlük Rapor")
+private suspend fun share(context: android.content.Context, event: TrackerEvent.ShareRequest) {
+    val fileName = event.fileName
+    if (fileName != null) {
+        // The archive is the one payload big enough to be worth a file, so the
+        // write goes off the main thread for the same reason it is a file at
+        // all: it is bounded by the number of rows the operator has ever
+        // recorded, not by anything small.
+        val uri = withContext(Dispatchers.IO) {
+            runCatching { writeShareFile(context, event.text, fileName) }.getOrNull()
+        }
+        if (uri != null) {
+            sendChooser(
+                context,
+                Intent(Intent.ACTION_SEND).apply {
+                    type = event.mimeType
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_SUBJECT, event.subject)
+                    putExtra(Intent.EXTRA_TEXT, event.subject)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                },
+            )
+            return
+        }
     }
-    val chooser = Intent.createChooser(intent, "Raporu paylaş").apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    sendChooser(
+        context,
+        Intent(Intent.ACTION_SEND).apply {
+            type = event.mimeType
+            putExtra(Intent.EXTRA_TEXT, event.text)
+            putExtra(Intent.EXTRA_SUBJECT, event.subject)
+        },
+    )
+}
+
+/**
+ * The chooser keeps a fixed title; [TrackerEvent.ShareRequest.subject] is only
+ * the subject the target app shows for a mail/to-do share.
+ */
+private fun sendChooser(context: android.content.Context, intent: Intent) {
+    // Launched from an Activity, so no NEW_TASK: adding it would hand the
+    // chooser and the app the operator picks their own task, and "back" would
+    // leave them somewhere other than the tracker.
+    context.startActivity(Intent.createChooser(intent, "Raporu paylaş"))
+}
+
+/**
+ * Writes [content] into `cacheDir/exports/` and returns a shareable URI.
+ *
+ * The directory is pruned on every export: this is the app cache, not the
+ * operator's storage, and an older export has no value once a fresher one
+ * exists. The file that is about to be shared always survives the prune.
+ */
+private fun writeShareFile(
+    context: android.content.Context,
+    content: String,
+    fileName: String,
+): android.net.Uri {
+    val directory = java.io.File(context.cacheDir, "exports").apply { mkdirs() }
+    directory.listFiles()?.forEach { stale ->
+        if (stale.name != fileName) stale.delete()
     }
-    context.startActivity(chooser)
+    val file = java.io.File(directory, fileName)
+    file.writeText(content)
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }

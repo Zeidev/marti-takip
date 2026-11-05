@@ -56,8 +56,29 @@
         </activity>
 
         <!--
+          Shares the generated CSV archive as a content:// attachment.
+
+          A CSV export cannot ride in EXTRA_TEXT: Intent extras travel in the
+          Binder transaction, which tops out around 1 MB, so a multi-year
+          archive made ACTION_SEND throw TransactionTooLargeException. The
+          provider serves cacheDir/exports/ only (see xml/file_paths.xml) and is
+          not exported, so the URI can only be read by the app the operator
+          picks in the chooser, for as long as that grant lasts.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!--
           osmdroid keeps its tile cache in the app-specific cache dir; no
-          FileProvider is needed because nothing is shared externally.
+          FileProvider is needed for that because nothing about the tiles is
+          shared externally.
         -->
         <meta-data
             android:name="android.max_aspect"

@@ -65,6 +65,15 @@ data class ShiftSpan(
 /** One archived shift, ready to be rendered in the history sheet. */
 data class ShiftSummary(
     val shiftId: Long,
+    /**
+     * The day the shift was archived on (`yyyy-MM-dd`).
+     *
+     * Every row of a shift carries the same key because `stampDay` only ever
+     * stamps one day, which is what makes this safe to read with `MIN()`.
+     * The history sheet uses it to decide whether the shift can still be
+     * restored - see [unarchiveShift].
+     */
+    val dayKey: String,
     val startedAt: Long,
     val endedAt: Long,
     val scooterCount: Int,
@@ -299,6 +308,7 @@ interface SwapDao {
         """
         SELECT
             shiftId AS shiftId,
+            MIN(dayKey) AS dayKey,
             MIN(timestamp) AS startedAt,
             MAX(timestamp) AS endedAt,
             CAST(SUM(CASE WHEN type = 'SCOOTER' THEN 1 ELSE 0 END) AS INTEGER) AS scooterCount,
@@ -324,12 +334,16 @@ interface SwapDao {
      * Un-archives a shift: clears its stamp so the rows become "live" again and
      * feed the counters.
      *
-     * Only meaningful when the shift belongs to the current day - restoring an
-     * old shift into today would silently inflate today's numbers, so the
-     * caller checks that first.
+     * The `dayKey` filter is enforced *here*, in the SQL, not by the caller:
+     * "live" rows only ever count towards a day whose key matches, so clearing
+     * the stamp of an older shift would remove it from the history sheet while
+     * leaving its rows invisible to both the counters and the history - the
+     * swaps would silently disappear from the app. Refusing to touch a
+     * non-current day is what makes the restore safe; the caller turns the
+     * resulting `0` into a "only today can be restored" message.
      */
-    @Query("UPDATE swap_events SET shiftId = NULL WHERE shiftId = :shiftId")
-    suspend fun unarchiveShift(shiftId: Long): Int
+    @Query("UPDATE swap_events SET shiftId = NULL WHERE shiftId = :shiftId AND dayKey = :dayKey")
+    suspend fun unarchiveShift(shiftId: Long, dayKey: String): Int
 
     @Query("SELECT COALESCE(MAX(shiftId), 0) + 1 FROM swap_events")
     suspend fun nextShiftId(): Long
