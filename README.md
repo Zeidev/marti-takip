@@ -228,8 +228,10 @@ günlüğüne `[insets] …` satırı olarak düşer.
 **Telefonda ilk ekran.** Aynı 812 dp ikinci bir sınır koyar: günlük hedef kartı da o bölgeye
 sığmalı, yoksa ilk bakışta yarım bir kart görünür. Aralıklar 14 → 10 dp, kazanç kartının içi
 20 → 16 dp, sayaç kartlarının içi 20 → 16 dp ve satır araları 14/12 → 10 dp, hedef kartının içi
-16 → 14 dp: toplam 68 dp. Hedef kartı artık ~798 dp'de bitiyor, alt çubuğa 13 dp kalıyor.
-Sayaçların boyutu ve dokunma hedefi değişmedi — hedef zaten kartın tamamı.
+16 → 14 dp: toplam 68 dp. `shell-phone` karesinde ölçülen sonuç: hedef kartı `776 dp`'de bitiyor,
+alt çubuğa **36 dp** kalıyor. Kalan pay bilinçli: konum izni yokken çıkan uyarı şeridi ve
+`hasPending` ilerleme çubuğu içeriği aşağı iter, hedef kartı yine de görünür kalmalı. Sayaçların
+boyutu ve dokunma hedefi değişmedi — hedef zaten kartın tamamı.
 
 
 > **Referans karşılaştırması açık.** Her kare, `app/src/test/screenshots/` altındaki aynı adlı
