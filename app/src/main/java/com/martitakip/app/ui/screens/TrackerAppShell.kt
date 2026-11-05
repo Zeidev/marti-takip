@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,6 +40,17 @@ import java.time.LocalDate
  * screen is deliberately exempt - a map is meant to be as large as the window.
  */
 private val TRACKER_CONTENT_MAX_WIDTH = 760.dp
+
+/**
+ * Marks the tracker content region so a test can measure it.
+ *
+ * A screenshot frame cannot answer what this tag exists for: content sliced by
+ * the navigation component's top edge renders identically whether the suite
+ * reserved that space or drew the component over the content, because the
+ * component is opaque either way. `ShellScreenshotTest` reads these bounds
+ * instead of the pixels.
+ */
+const val TRACKER_CONTENT_TEST_TAG = "tracker-content"
 
 /** The two top-level destinations. */
 enum class TrackerDestination(
@@ -139,7 +151,9 @@ fun TrackerAppShell(
         ) { target ->
             when (target) {
                 TrackerDestination.TRACKER -> Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(TRACKER_CONTENT_TEST_TAG),
                     contentAlignment = Alignment.TopCenter,
                 ) {
                     MainTrackerScreen(
