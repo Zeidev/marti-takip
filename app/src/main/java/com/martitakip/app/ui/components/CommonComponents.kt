@@ -164,7 +164,11 @@ fun CounterActionCard(
                     shape = RoundedCornerShape(28.dp),
                 ),
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            // 16dp of padding and 10dp between the rows, not 20/14/12: two of
+            // these cards are on every phone screen, so 14dp here buys 28dp
+            // towards the daily-goal card fitting above the navigation bar. The
+            // touch target is the whole card, so nothing gets harder to hit.
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -205,7 +209,7 @@ fun CounterActionCard(
                     )
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -241,14 +245,14 @@ fun CounterActionCard(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(accent)
-                        .padding(vertical = 14.dp),
+                        .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -388,7 +392,9 @@ fun GoalProgressCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        // The card has to clear the navigation bar on a phone at rest, so its
+        // own padding is trimmed as well: this is the card that has to fit.
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (reached) "🎯 Günlük hedef tamamlandı!" else "🎯 Günlük hedef",
@@ -404,9 +410,9 @@ fun GoalProgressCard(
                     color = accent,
                 )
             }
-            Spacer(Modifier.height(10.dp))
-            GoalBar(progress = animatedProgress, accent = accent)
             Spacer(Modifier.height(8.dp))
+            GoalBar(progress = animatedProgress, accent = accent)
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (reached) {

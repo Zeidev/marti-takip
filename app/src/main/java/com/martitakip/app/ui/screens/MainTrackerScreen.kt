@@ -184,7 +184,12 @@ fun MainTrackerScreen(
                 top = 4.dp,
                 bottom = contentPadding.calculateBottomPadding() + 24.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            // 10dp, not the 14dp this list used before: on a 412x892 phone the
+            // daily-goal card has to fit between the top bar and the navigation
+            // bar at rest, and the gap between cards is the cheapest place to
+            // find those 12dp - it costs nothing to read. The counters keep
+            // their size instead.
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // --- Live earnings header -------------------------------------
             item(key = "header") {
@@ -353,7 +358,7 @@ private fun EarningsHeader(state: TrackerUiState) {
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -392,7 +397,7 @@ private fun EarningsHeader(state: TrackerUiState) {
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 HeaderPill(
