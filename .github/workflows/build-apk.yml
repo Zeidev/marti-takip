@@ -252,6 +252,22 @@ jobs:
           echo "--- references ---"
           ls -l app/src/test/screenshots
 
+      # A run in which the screenshot tests silently did not execute looks exactly
+      # like a run in which they all did, and both look like a green build. This
+      # prints the evidence either way, so the next failure of the step above is
+      # a fact and not a guess.
+      - name: Report what the test run produced
+        if: always()
+        run: |
+          echo "--- test result files ---"
+          mapfile -t RESULTS < <(find . -path ./.git -prune -o -type f -path '*test-results*' -name '*.xml' -print | sort)
+          printf 'count: %s\n' "${#RESULTS[@]}"
+          if [ "${#RESULTS[@]}" -gt 0 ]; then
+            grep -h -o '<testcase name="[^"]*"' "${RESULTS[@]}" | sort -u
+          fi
+          echo "--- every PNG in the workspace ---"
+          find . -path ./.git -prune -o -type f -name '*.png' -print | sort
+
       - name: Upload the recorded frames
         uses: actions/upload-artifact@v7
         with:

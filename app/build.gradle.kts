@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     alias(libs.plugins.android.application)
@@ -130,6 +131,19 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
+}
+
+// The screenshot tests read the rendered frame back with PixelCopy, and
+// Robolectric only implements PixelCopy in its hardware render mode; without
+// this the capture fails instead of producing a frame.
+//
+// `showStandardStreams` is the other half of the same lesson: the tests print
+// where each frame was written, and Gradle swallows test stdout by default. With
+// it off, a run that rendered nothing at all looked exactly like a run that
+// rendered every frame - and CI stayed green either way.
+tasks.withType<Test>().configureEach {
+    systemProperty("robolectric.pixelCopyRenderMode", "hardware")
+    testLogging { showStandardStreams = true }
 }
 
 ksp {

@@ -1,6 +1,9 @@
 package com.martitakip.app.ui
 
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.captureToImage
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.io.File
 import java.util.Locale
@@ -54,7 +57,20 @@ private val referenceDir: File
 fun captureAndVerify(node: SemanticsNodeInteraction, name: String) {
     val recorded = File(recordedDir, "$name.png")
     recorded.parentFile?.mkdirs()
+
     node.captureRoboImage(recorded.absolutePath)
+
+    // Roborazzi only documents writing frames alongside its Gradle plugin, and
+    // this project deliberately does not apply it. A frame that quietly was not
+    // written is the worst failure this file can have - the run stays green with
+    // nothing to look at - so the write is checked, and Compose's own capture
+    // stands in when Roborazzi produced nothing.
+    if (!recorded.isFile) {
+        val frame = node.captureToImage().asAndroidBitmap()
+        recorded.outputStream().use { frame.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        println("[screenshot] $name written by Compose (Roborazzi wrote nothing) -> ${recorded.absolutePath}")
+    }
+    check(recorded.isFile) { "Screenshot $name was not written to ${recorded.absolutePath}." }
 
     if (System.getenv(RECORD_ENV) == "1") {
         println("[screenshot] recorded $name -> ${recorded.absolutePath}")
