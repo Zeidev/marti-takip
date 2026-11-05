@@ -14,10 +14,10 @@ Kotlin + Jetpack Compose + Material 3 · Room (SQLite) · OpenStreetMap · Tek s
 | **Canlı kazanç** | `(Scooter × Fiyat) + (Moped × Fiyat)` her dokunuşta anında güncellenir. |
 | **Haptik onay** | Her `+1`/`-1` dokunuşunda titreşim (ayarlardan kapatılabilir). |
 | **Olay bazlı GPS** | `+1`'e basıldığı **an** arka planda tek seferlik konum alınır. GPS gelmezse kayıt yine de yazılır, koordinat `null` kalır. Arka plan servisi **yoktur** — pil tüketmez. |
-| **Ayarlar** | Sağ üstteki dişli ikonu: Scooter fiyatı, Moped fiyatı, günlük hedef, haptik ve otomatik konum anahtarları. |
+| **Ayarlar** | Sağ üstteki dişli ikonu: Scooter fiyatı, Moped fiyatı, günlük hedef, haptik, otomatik konum ve ses anahtarları. Alt panel olarak açılır. |
 | **Vardiya yönetimi** | "Vardiyayı Kaydet & Sıfırla" o anki tüm kayıtları atomik olarak arşive alır ve sayaçları sıfırlar. |
 | **Paylaşım** | Günlük özet WhatsApp / Telegram / herhangi bir uygulamaya `ACTION_SEND` Intent'i ile gider. |
-| **Isı haritası** | OpenStreetMap üzerinde Scooter = 🟢 yeşil, Moped = 🟠 turuncu yarı saydam daireler. Zaman aralığı filtresi (Bugün / 7 / 30 / Tümü). |
+| **Isı haritası** | OpenStreetMap üzerinde Scooter = 🟢 yeşil, Moped = 🟠 turuncu yarı saydam daireler. Zaman aralığı filtresi parçalı düğme (Bugün / 7 / 30 / Tümü). |
 | **Arşiv** | Vardiya geçmişi alt sayfası; her vardiya için süre, adet, kazanç ve paylaş butonu. |
 | **CSV dışa aktarım** | Tüm kayıtlar tek dokunuşla CSV olarak paylaşılır (cihazda yedek). Arşiv büyüdüğü için metin gövdesi yerine `FileProvider` üzerinden **dosya eki** olarak gönderilir. |
 | **Saatlik hız** | Değişim/saat, kazanç/saat, dk/değişim ve 08–22 saat şeridi. Hız, vardiyanın *aktif* süresi üzerinden hesaplanır. |
@@ -25,6 +25,7 @@ Kotlin + Jetpack Compose + Material 3 · Room (SQLite) · OpenStreetMap · Tek s
 | **Trend** | Son 14 günün günlük değişim grafiği + düne göre fark. |
 | **Motivasyon** | İlerlemeye göre değişen kısa teşvik mesajı. |
 | **Sesli onay** | Her kayıtta kısa bip (ayarlardan kapatılabilir). |
+| **Uyarlanabilir arayüz** | Navigasyon bileşeni ve kart yerleşimi pencere genişliğine göre kendini seçer: telefonda alt çubuk + tek kolon, tablette yan ray + yan yana sayaçlar, masaüstü penceresinde çekmece. |
 | **Arşivden geri alma** | Yanlışlıkla kaydedilen vardiya tek dokunuşla aktife döner. Yalnızca **bugünün** vardiyası geri alınabilir; eski günler geçmişte kalır. |
 | **Günü sil** | Arşivlemeden silme; onay diyaloğu ile korunur. |
 
@@ -98,6 +99,15 @@ Canlı sayaçlar `dayKey = bugün AND shiftId IS NULL` ile okunur. Eski bir vard
 damgası silinirse satırları ne bugünün sayacına girer ne de geçmiş listesinde kalır —
 uygulamada hiçbir yerde görünmez olur. Bu yüzden gün filtresi `unarchiveShift` SQL'inin
 içindedir, çağıranın kontrolüne bırakılmamıştır; eski günler için buton kapalıdır.
+
+**7. Navigasyon pencere boyutuna göre kendini seçer.**
+İskelet elle yazılmış bir `NavigationBar` değil, `material3-adaptive-navigation-suite`
+içindeki `NavigationSuiteScaffold`. Telefonda alt çubuk, tablet/kabarık ekranda yan ray,
+masaüstü penceresinde çekmece çizilir; seçim pencere boyut sınıfından gelir, uygulama
+kodundan değil. İçerik de aynı eşiğe uyar: sayaç kartları 600 dp'nin üzerinde yan yana,
+altında alt alta. Animasyon süreleri elle seçilmiş `tween` değerleri yerine
+`MaterialTheme.motionScheme` jetonlarından gelir; böylece arayüz Material
+bileşenleriyle aynı ritimde hareket eder.
 
 ---
 
@@ -178,7 +188,8 @@ mesafesi ve gruplama sıralaması).
 | AGP | 9.4.0 |
 | Gradle | 9.8.2 |
 | Compose BOM | 2026.09.00 |
-| Material 3 | 1.4.0 |
+| Material 3 | 1.5.0-beta01 |
+| material3-adaptive-navigation-suite | 1.5.0-beta01 |
 | Room | 2.8.5 (KSP 2.3.13) |
 | osmdroid | 6.1.20 |
 | play-services-location | 21.4.0 |

@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,6 +75,15 @@ import com.martitakip.app.ui.theme.MartiTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+/**
+ * Smallest window width, in dp, that fits the two counter cards side by side.
+ *
+ * 600dp is the Material breakpoint between the compact and medium window size
+ * classes. Below it the cards stack, which is what the layout was designed
+ * for: one hand, one thumb, one card at a time.
+ */
+private const val WIDE_LAYOUT_MIN_WIDTH_DP = 600
 
 /**
  * The primary field screen: two giant counters, the live TL total, the daily
@@ -232,37 +242,12 @@ fun MainTrackerScreen(
                 }
             }
 
-            // --- Scooter card ---------------------------------------------
-            item(key = "scooter") {
-                CounterActionCard(
-                    title = "Scooter",
-                    subtitle = "Elektrikli scooter batarya değişimi",
-                    count = state.scooterCount,
-                    earnings = state.scooterEarnings,
-                    unitPrice = state.scooterPrice,
-                    accent = vehicle.scooter,
-                    containerColor = vehicle.scooterContainer,
-                    onContainerColor = vehicle.onScooterContainer,
-                    icon = Icons.Rounded.PedalBike,
-                    onIncrement = { incrementWithHaptic(VehicleType.SCOOTER) },
-                    onDecrement = { decrementWithHaptic(VehicleType.SCOOTER) },
-                )
-            }
-
-            // --- Moped card -----------------------------------------------
-            item(key = "moped") {
-                CounterActionCard(
-                    title = "Moped",
-                    subtitle = "Moped batarya değişimi",
-                    count = state.mopedCount,
-                    earnings = state.mopedEarnings,
-                    unitPrice = state.mopedPrice,
-                    accent = vehicle.moped,
-                    containerColor = vehicle.mopedContainer,
-                    onContainerColor = vehicle.onMopedContainer,
-                    icon = Icons.Rounded.TwoWheeler,
-                    onIncrement = { incrementWithHaptic(VehicleType.MOPED) },
-                    onDecrement = { decrementWithHaptic(VehicleType.MOPED) },
+            // --- Vehicle counters -----------------------------------------
+            item(key = "counters") {
+                VehicleCounters(
+                    state = state,
+                    onIncrement = incrementWithHaptic,
+                    onDecrement = decrementWithHaptic,
                 )
             }
 
@@ -608,6 +593,71 @@ private fun RecentSwapRow(swap: SwapEvent) {
     }
 }
 
+/**
+ * The two counter cards, side by side once there is room for it.
+ *
+ * [WIDE_LAYOUT_MIN_WIDTH_DP] is the Material breakpoint between the compact and
+ * medium window size classes - the width at which a phone-sized, thumb-first
+ * single column stops being the right model.
+ */
+@Composable
+private fun VehicleCounters(
+    state: TrackerUiState,
+    onIncrement: (VehicleType) -> Unit,
+    onDecrement: (VehicleType) -> Unit,
+) {
+    val vehicle = MartiTheme.vehicle
+    val isWide = LocalConfiguration.current.screenWidthDp >= WIDE_LAYOUT_MIN_WIDTH_DP
+
+    val scooter: @Composable (Modifier) -> Unit = { cardModifier ->
+        CounterActionCard(
+            title = "Scooter",
+            subtitle = "Elektrikli scooter batarya değişimi",
+            count = state.scooterCount,
+            earnings = state.scooterEarnings,
+            unitPrice = state.scooterPrice,
+            accent = vehicle.scooter,
+            containerColor = vehicle.scooterContainer,
+            onContainerColor = vehicle.onScooterContainer,
+            icon = Icons.Rounded.PedalBike,
+            onIncrement = { onIncrement(VehicleType.SCOOTER) },
+            onDecrement = { onDecrement(VehicleType.SCOOTER) },
+            modifier = cardModifier,
+        )
+    }
+    val moped: @Composable (Modifier) -> Unit = { cardModifier ->
+        CounterActionCard(
+            title = "Moped",
+            subtitle = "Moped batarya değişimi",
+            count = state.mopedCount,
+            earnings = state.mopedEarnings,
+            unitPrice = state.mopedPrice,
+            accent = vehicle.moped,
+            containerColor = vehicle.mopedContainer,
+            onContainerColor = vehicle.onMopedContainer,
+            icon = Icons.Rounded.TwoWheeler,
+            onIncrement = { onIncrement(VehicleType.MOPED) },
+            onDecrement = { onDecrement(VehicleType.MOPED) },
+            modifier = cardModifier,
+        )
+    }
+
+    if (isWide) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            scooter(Modifier.weight(1f))
+            moped(Modifier.weight(1f))
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            scooter(Modifier)
+            moped(Modifier)
+        }
+    }
+}
+
 @Preview(showBackground = true, heightDp = 900)
 @Composable
 private fun MainTrackerPreview() {
@@ -618,6 +668,41 @@ private fun MainTrackerPreview() {
                 dayKey = LocalDate.now().toString(),
                 scooterCount = 12,
                 mopedCount = 7,
+                scooterPrice = 15.0,
+                mopedPrice = 25.0,
+                dailyGoal = 40,
+                hasLocationPermission = true,
+            ),
+            onIncrement = {},
+            onDecrement = {},
+            onOpenSettings = {},
+            onOpenHistory = {},
+            onShare = {},
+            onArchiveShift = {},
+            onClearToday = {},
+            onRequestPermission = {},
+        )
+    }
+}
+
+/**
+ * The same screen on a window wide enough for the side-by-side counters.
+ *
+ * `widthDp` is what selects the wide branch: the screen reads the window width
+ * class through [LocalConfiguration], so a preview has to declare one.
+ */
+@Preview(name = "Geniş ekran", showBackground = true, widthDp = 840, heightDp = 900)
+@Composable
+private fun MainTrackerWidePreview() {
+    MartiTakipTheme {
+        MainTrackerScreen(
+            state = TrackerUiState(
+                isLoading = false,
+                dayKey = LocalDate.now().toString(),
+                scooterCount = 18,
+                mopedCount = 11,
+                scooterEarnings = 270.0,
+                mopedEarnings = 275.0,
                 scooterPrice = 15.0,
                 mopedPrice = 25.0,
                 dailyGoal = 40,

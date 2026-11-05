@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -87,15 +86,20 @@ fun CounterActionCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
+    // All timing comes from the Material motion scheme rather than hand-picked
+    // durations, so this card moves in step with the Material components around
+    // it and follows the scheme if the theme ever switches to the expressive
+    // one: spatial for anything that changes bounds or position (scale, size),
+    // effects for anything that only changes paint (colour).
     val pressScale by animateFloatAsState(
         targetValue = if (isPressed) 0.975f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
         label = "cardPressScale",
     )
 
     val borderColor by animateColorAsState(
         targetValue = if (count > 0) accent.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outlineVariant,
-        animationSpec = tween(220),
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "cardBorder",
     )
 
@@ -116,10 +120,15 @@ fun CounterActionCard(
             onIncrement()
             scope.launch {
                 bump.snapTo(1f)
+                // The growth is a spatial change, so it takes the fast spatial
+                // spec and lands inside the tap-to-acknowledge window.
                 bump.animateTo(
                     targetValue = 1.06f,
-                    animationSpec = tween(durationMillis = 90),
+                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
                 )
+                // The settle back is deliberately *not* the motion scheme: a
+                // bouncy spring here is the whole point of the bump, and the
+                // scheme's spatial specs are tuned to be unobtrusive.
                 bump.animateTo(
                     targetValue = 1f,
                     animationSpec = spring(
@@ -298,7 +307,7 @@ fun GpsStatusChip(
             !hasPermission -> MaterialTheme.colorScheme.errorContainer
             else -> MaterialTheme.colorScheme.surfaceVariant
         },
-        animationSpec = tween(300),
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "gpsChipBackground",
     )
     val foreground by animateColorAsState(
@@ -307,7 +316,7 @@ fun GpsStatusChip(
             !hasPermission -> MaterialTheme.colorScheme.onErrorContainer
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         },
-        animationSpec = tween(300),
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "gpsChipForeground",
     )
 
@@ -361,7 +370,7 @@ fun GoalProgressCard(
     val accent = if (reached) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 450),
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "goalProgress",
     )
 

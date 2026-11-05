@@ -28,12 +28,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -282,7 +283,21 @@ fun OsmMapScreen(
     }
 }
 
+/**
+ * The summary card's time filter.
+ *
+ * Ordered as drawn: the segmented row derives each segment's corner shape from
+ * the position, so the declaration order *is* the visual order.
+ */
+private enum class RangeOption(val days: Int, val label: String) {
+    TODAY(1, "Bugün"),
+    WEEK(7, "7 gün"),
+    MONTH(30, "30 gün"),
+    ALL(0, "Tümü"),
+}
+
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun MapSummaryCard(
     state: MapUiState,
     rangeDays: Int,
@@ -332,34 +347,29 @@ private fun MapSummaryCard(
 
             Spacer(Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                RangeChip(
-                    label = "Bugün",
-                    selected = rangeDays == 1,
-                    onClick = { onRangeChange(1) },
-                    modifier = Modifier.weight(1f),
-                )
-                RangeChip(
-                    label = "7 gün",
-                    selected = rangeDays == 7,
-                    onClick = { onRangeChange(7) },
-                    modifier = Modifier.weight(1f),
-                )
-                RangeChip(
-                    label = "30 gün",
-                    selected = rangeDays == 30,
-                    onClick = { onRangeChange(30) },
-                    modifier = Modifier.weight(1f),
-                )
-                RangeChip(
-                    label = "Tümü",
-                    selected = rangeDays == 0,
-                    onClick = { onRangeChange(0) },
-                    modifier = Modifier.weight(1f),
-                )
+            // Segmented buttons rather than four independent chips: the range
+            // is one choice out of four, and a single joined control says that
+            // before the operator has read a single label. The default colors
+            // already resolve the selected segment to the same green the chips
+            // used, so no override is needed.
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                RangeOption.entries.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = rangeDays == option.days,
+                        onClick = { onRangeChange(option.days) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = RangeOption.entries.size,
+                        ),
+                        label = {
+                            Text(
+                                text = option.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                            )
+                        },
+                    )
+                }
             }
 
             Spacer(Modifier.height(10.dp))
@@ -389,37 +399,6 @@ private fun MapSummaryCard(
             }
         }
     }
-}
-
-@Composable
-private fun RangeChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-            )
-        },
-        modifier = modifier,
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = MaterialTheme.colorScheme.outlineVariant,
-            selectedBorderColor = Color.Transparent,
-        ),
-    )
 }
 
 @Composable

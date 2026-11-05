@@ -17,15 +17,17 @@ import androidx.compose.material.icons.rounded.PedalBike
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.TwoWheeler
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,7 +46,12 @@ import com.martitakip.app.ui.theme.MartiTakipTheme
 import com.martitakip.app.ui.theme.MartiTheme
 
 /**
- * Settings dialog: the two unit prices, the daily goal and the two toggles.
+ * Settings sheet: the two unit prices, the daily goal and the three toggles.
+ *
+ * Presented as a bottom sheet rather than a dialog. The settings are edited and
+ * live-applied in place - each toggle writes through immediately - so there is
+ * nothing modal to protect the operator from, and a sheet keeps the counters
+ * visible behind it. The pattern matches [ShiftHistorySheet].
  *
  * Validation rules:
  *  - Prices accept both `15` and `15,50` (Turkish decimal comma) and are
@@ -55,7 +62,7 @@ import com.martitakip.app.ui.theme.MartiTheme
  */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun SettingsDialog(
+fun SettingsSheet(
     visible: Boolean,
     current: UserSettings,
     onDismiss: () -> Unit,
@@ -97,9 +104,19 @@ fun SettingsDialog(
     val goalError = goalText.isNotBlank() && goal == null
     val canSave = scooterPrice != null && mopedPrice != null && goal != null
 
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+        ) {
             Column {
                 Text(
                     text = "Ayarlar",
@@ -112,8 +129,9 @@ fun SettingsDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        },
-        text = {
+
+            Spacer(Modifier.height(16.dp))
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -217,28 +235,40 @@ fun SettingsDialog(
                     Text("Varsayılan değerlere dön")
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (scooterPrice != null && mopedPrice != null && goal != null) {
-                        onSave(scooterPrice, mopedPrice, goal)
-                    }
-                },
-                enabled = canSave,
+
+            Spacer(Modifier.height(16.dp))
+
+            // Filled primary action on the right, quiet dismiss on the left.
+            // An AlertDialog laid the two out as equal text buttons, which
+            // reads as two equally likely answers to a question whose default
+            // is unambiguous.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = "Kaydet",
-                    fontWeight = FontWeight.Bold,
-                )
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Vazgeç")
+                }
+                Button(
+                    onClick = {
+                        if (scooterPrice != null && mopedPrice != null && goal != null) {
+                            onSave(scooterPrice, mopedPrice, goal)
+                        }
+                    },
+                    enabled = canSave,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(
+                        text = "Kaydet",
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Vazgeç")
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable
@@ -337,9 +367,9 @@ private fun String.parsePrice(): Double? {
 
 @Preview(showBackground = true)
 @Composable
-private fun SettingsDialogPreview() {
+private fun SettingsSheetPreview() {
     MartiTakipTheme {
-        SettingsDialog(
+        SettingsSheet(
             visible = true,
             current = UserSettings(),
             onDismiss = {},

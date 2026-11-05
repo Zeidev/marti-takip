@@ -144,6 +144,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
+    // NavigationSuiteScaffold: bottom bar on a phone, rail on a tablet or an
+    // unfolded foldable, drawer on a desktop-sized window. All three come from
+    // the window size class, so the shell does not hand-roll a NavigationBar.
+    implementation(libs.material3.adaptive.navigation.suite)
     implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

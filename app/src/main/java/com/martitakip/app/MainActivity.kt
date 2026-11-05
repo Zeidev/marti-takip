@@ -48,7 +48,7 @@ import com.martitakip.app.ui.TrackerEvent
 import com.martitakip.app.ui.TrackerViewModel
 import com.martitakip.app.ui.screens.ClearTodayDialog
 import com.martitakip.app.ui.screens.RestoreShiftDialog
-import com.martitakip.app.ui.screens.SettingsDialog
+import com.martitakip.app.ui.screens.SettingsSheet
 import com.martitakip.app.ui.screens.ShiftHistorySheet
 import com.martitakip.app.ui.screens.TrackerAppShell
 import com.martitakip.app.ui.screens.TrackerDestination
@@ -288,7 +288,7 @@ private fun TrackerApp(
 
     // --- Dialogs & sheets ------------------------------------------------
 
-    SettingsDialog(
+    SettingsSheet(
         visible = trackerState.settingsOpen,
         current = UserSettings(
             scooterPrice = trackerState.scooterPrice,

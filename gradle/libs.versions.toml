@@ -6,7 +6,12 @@ coreKtx = "1.15.0"
 lifecycle = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2026.09.00"
-material3 = "1.4.0"
+material3 = "1.5.0-beta01"
+# The adaptive navigation suite ships in lockstep with material3: it supplies
+# NavigationSuiteScaffold, which swaps the bottom bar for a rail or a drawer on
+# wider windows. Pinning both to the same version keeps NavigationSuiteType and
+# NavigationSuiteItemColors in sync with the component set.
+material3AdaptiveNavigationSuite = "1.5.0-beta01"
 composeMaterialIcons = "1.7.6"
 room = "2.8.5"
 osmdroid = "6.1.20"
@@ -31,6 +36,7 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+material3-adaptive-navigation-suite = { group = "androidx.compose.material3", name = "material3-adaptive-navigation-suite", version.ref = "material3AdaptiveNavigationSuite" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "composeMaterialIcons" }
 
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
