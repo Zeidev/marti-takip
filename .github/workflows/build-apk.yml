@@ -3,7 +3,10 @@ name: Build APK
 # Zero-cost CI/CD:
 #  - runs on GitHub-hosted runners (free for public repositories),
 #  - uploads the APK as a workflow artifact on every push,
-#  - publishes a GitHub Release with the APK attached when a tag is pushed.
+#  - uploads the rendered UI frames, which the test suite compares against the
+#    references committed under app/src/test/screenshots/,
+#  - publishes a GitHub Release with the APK attached when a tag is pushed,
+#  - re-records those references on demand (dispatch with record_references).
 on:
   push:
     branches: [ "main", "master" ]
@@ -20,6 +23,11 @@ on:
         options:
           - debug
           - release
+      record_references:
+        description: "UI referans görüntülerini yeniden kaydet ve commit et (APK derlenmez)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,6 +39,9 @@ permissions:
 jobs:
   build:
     name: Assemble APK
+    # A reference-recording dispatch is a different job; building an APK in that
+    # run would only waste 10 minutes and race it for the same Gradle lock.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.record_references) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -161,3 +172,83 @@ jobs:
             - Veriler yalnızca cihazda (Room/SQLite) tutulur, hiçbir sunucuya gönderilmez.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Re-recording the UI references, on demand.
+  #
+  # The test suite compares every rendered frame with the reference committed
+  # under `app/src/test/screenshots/`, so an intended visual change turns the
+  # push build red until the references catch up. Doing that by hand means
+  # downloading the `ui-screenshots` artifact and committing PNGs from a browser,
+  # which is drudgery and easy to get half-right; this job does it in CI instead
+  # and pushes the result itself.
+  references:
+    name: Record UI references
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.record_references }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platforms;android-37.2 build-tools;37.0.0"
+
+      - name: Restore Gradle wrapper
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "::error::gradle-wrapper.jar is missing from the repository."
+            exit 1
+          fi
+          chmod +x gradlew
+
+      # Record mode, because the references are the stale half of this run: if
+      # the recorded frames were still compared against them, the intended
+      # difference would fail the suite before it could be recorded.
+      - name: Render the frames in record mode
+        env:
+          MT_RECORD_SCREENSHOTS: "1"
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Copy the frames into the reference folder
+        run: |
+          set -euo pipefail
+          ls -l app/build/outputs/roborazzi
+          mkdir -p app/src/test/screenshots
+          cp app/build/outputs/roborazzi/*.png app/src/test/screenshots/
+          echo "--- references ---"
+          ls -l app/src/test/screenshots
+
+      - name: Upload the recorded frames
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-references
+          path: app/src/test/screenshots
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Commit the references
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/test/screenshots
+          if git diff --cached --quiet; then
+            echo "References are unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(test): UI referans görüntülerini yenile
+
+          Co-Authored-By: Claude Code <noreply@anthropic.com>"
+          git push

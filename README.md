@@ -119,13 +119,15 @@ görünür, çünkü ikisi de aynı `windowSplashScreen*` niteliklerini okur. Te
 `values/` içindedir: ikon ve marka rengi karanlıkta da aynı olduğu için gece varyantı
 kopya olurdu, fark değil.
 
-**9. Ekran görüntüsü testleri Gradle eklentisi olmadan çalışır.**
+**9. Ekran görüntüsü testleri Gradle eklentisi olmadan çalışır; karşılaştırmayı testin kendisi yapar.**
 Roborazzi'nin kendi eklentisi `recordRoborazzi*` / `verifyRoborazzi*` görevlerini ekler, ama
 o görevler referans görüntü yokken kırmızı olur — yani test altyapısı, korumak istediği
-derlemeyi kırar. Burada eklenti bilinçli olarak yok: PNG üretimi sıradan `testDebugUnitTest`
-çalışmasının yan ürünüdür, kareler CI'da artifact olarak yüklenir ve eksik bir dosya
-derlemeyi asla durduramaz. Karşılaştırma modu, referanslar depoya işlendikten sonra açılacak
-bilinçli bir sonraki adım olarak duruyor.
+derlemeyi kırar. Eklenti bu yüzden yok: PNG üretimi sıradan `testDebugUnitTest` çalışmasının
+yan ürünü. Karşılaştırma `ScreenshotReference.kt` içinde `ImageIO` ile yapılır. Kazancı üç
+tanedir: tolerans (kanal başına 8/255, kare başına %0.1 piksel) depoda okunabilir bir yerde
+durur, Roborazzi'nin dizin/özellik varsayılanlarına hiç bağlı kalınmaz ve **eksik referans
+asla derlemeyi kıramaz** — referansı olmayan kare yalnızca kaydedilir ve konsola not düşer.
+Referanslar `app/src/test/screenshots/` altında commit'lenir.
 
 ---
 
@@ -199,7 +201,8 @@ mesafesi ve gruplama sıralaması).
 Aynı komut **ekran görüntüsü testlerini** de çalıştırır. Robolectric Compose ağacını JVM'de
 gerçek kaynaklarla çizer, Roborazzi sonucu PNG olarak yazar; görüntüler
 `app/build/outputs/roborazzi/` altında oluşur ve CI her push'ta bunları `ui-screenshots`
-artifact'i olarak yükler. Yani yerleşimi görmek için telefona kurmak gerekmez.
+artifact'i olarak yükler. Yani yerleşimi görmek için telefona kurmak gerekmez. Aynı koşuda her
+kare, `app/src/test/screenshots/` altındaki aynı adlı referansla karşılaştırılır.
 
 | Kare | Neyi görünür kılar |
 |---|---|
@@ -208,9 +211,26 @@ artifact'i olarak yükler. Yani yerleşimi görmek için telefona kurmak gerekme
 | `shell-phone` · `tracker-screen-phone` | Alt çubuğun arkasında kalan içerik, çift durum çubuğu boşluğu |
 | `shell-tablet` | 1000 dp'de ray mı çıkıyor, kartlar yan yana mı geliyor |
 
-> **Altın (golden) karşılaştırma kapalı.** Görüntüler kaydedilir, doğrulanmaz: eksik bir
-> referans dosyası derlemeyi kıramaz. Referans kareler depoya işlendikten sonra Roborazzi'nin
-> karşılaştırma modu açılabilir — o zaman bir sonraki görsel gerileme CI'da kırmızı olur.
+> **Referans karşılaştırması açık.** Her kare, `app/src/test/screenshots/` altındaki aynı adlı
+> referansla karşılaştırılır. Kanal başına 8/255 fark ve kare başına %0.1 piksel tolere edilir;
+> **boyut değişimi toleranssızdır**. Kasıtlı bir görsel değişiklik referansları bayat bırakır ve
+> unit test kapısını kırar — yani kırmızı sonuç her zaman gerileme demek değildir, "referansı
+> yenile" de olabilir. Hata mesajı hem farkı hem de o koşuda çizilen PNG'nin tam yolunu yazar.
+>
+> Yenilemek için (kareler `build/outputs/roborazzi/` altında yeniden üretilir):
+>
+> ```bash
+> MT_RECORD_SCREENSHOTS=1 ./gradlew :app:testDebugUnitTest
+> ```
+>
+> ```bash
+> cp app/build/outputs/roborazzi/*.png app/src/test/screenshots/
+> ```
+>
+> Yerel Gradle yoksa: Actions → Build APK → *Run workflow* → **record_references** işaretle.
+> O iş kayıt modunda çizer, kareleri referans klasörüne kopyalar ve commit'i kendisi push eder.
+> Referansı henüz olmayan yeni bir kare kırmızı olmaz: yalnızca `build/outputs/roborazzi/`
+> altına yazılır ve konsola `no reference for <ad>` düşer.
 
 ---
 

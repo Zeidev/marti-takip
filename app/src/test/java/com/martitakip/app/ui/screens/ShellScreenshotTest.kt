@@ -7,9 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
 import com.martitakip.app.ui.MapUiState
 import com.martitakip.app.ui.TrackerUiState
+import com.martitakip.app.ui.captureAndVerify
 import com.martitakip.app.ui.theme.MartiTakipTheme
 import org.junit.Rule
 import org.junit.Test
@@ -29,6 +29,10 @@ import java.time.LocalDate
  * The window size comes from the `qualifiers` on each test, which is what makes
  * `LocalConfiguration.screenWidthDp` and the window size class report a phone
  * (compact) or a tablet (expanded) layout.
+ *
+ * Each frame is also compared with the committed reference of the same name
+ * (`src/test/screenshots/`), so an inset or layout change that nobody meant to
+ * make turns this suite red. See `ScreenshotReference.kt`.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -134,6 +138,6 @@ class ShellScreenshotTest {
                 }
             }
         }
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name.png")
+        captureAndVerify(compose.onRoot(), name)
     }
 }

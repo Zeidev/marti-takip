@@ -13,7 +13,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import com.martitakip.app.ui.captureAndVerify
 import com.martitakip.app.ui.theme.MartiTakipTheme
 import com.martitakip.app.ui.theme.MartiTheme
 import org.junit.Rule
@@ -30,7 +30,8 @@ import org.robolectric.annotation.GraphicsMode
  * a counter card is visual (does the giant "+1" still read as the primary action,
  * is the goal bar legible next to the accent), and that is exactly what regresses
  * silently. The images land in `build/outputs/roborazzi/`, which the CI job
- * uploads as an artifact - no emulator, no device.
+ * uploads as an artifact - no emulator, no device - and each one is compared with
+ * the committed reference of the same name. See `ScreenshotReference.kt`.
  *
  * `@Config` pins the SDK because Robolectric renders against a downloaded
  * runtime, and an API level it has no runtime for fails the whole class.
@@ -110,8 +111,9 @@ class ComponentScreenshotTest {
                 }
             }
         }
-        // Explicit path: Roborazzi derives a default name from the test method,
-        // and these names are what the artifact download shows.
-        compose.onRoot().captureRoboImage("build/outputs/roborazzi/$name.png")
+        // Explicit frame name: it is what the artifact download, the committed
+        // reference under `src/test/screenshots/` and the failure message all
+        // call this frame, so the three never drift apart.
+        captureAndVerify(compose.onRoot(), name)
     }
 }
