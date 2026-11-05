@@ -208,8 +208,23 @@ kare, `app/src/test/screenshots/` altındaki aynı adlı referansla karşılaşt
 |---|---|
 | `counter-scooter` · `counter-moped-empty` | Dev `+1` hedefinin okunurluğu, boş durumda `-1`'in pasif görünmesi |
 | `goal-reached` | Hedef çubuğunun tamamlanmış hâli |
-| `shell-phone` · `tracker-screen-phone` | Alt çubuğun arkasında kalan içerik, çift durum çubuğu boşluğu |
+| `shell-phone` · `tracker-screen-phone` | Alt çubuklu ve çubuksuz aynı ekran: aradaki farkı yalnızca kabuk yapar |
 | `shell-tablet` | 1000 dp'de ray mı çıkıyor, kartlar yan yana mı geliyor |
+
+**Navigasyon bileşeni ile içerik çakışıyor mu?** Bunu kare söyleyemez: çubuk opak olduğu için
+"alan ayrıldı" ile "üstüne çizildi" aynı pikseli verir. Onun yerine ölçülür —
+`ShellScreenshotTest` içindeki iki geometri testi, içerik bölgesinin sınırlarını
+(`TRACKER_CONTENT_TEST_TAG`) okur ve navigasyon bileşeninin altına taşmadığını doğrular:
+
+| Pencere | İçerik bölgesi | Navigasyon bileşeni | Sonuç |
+|---|---|---|---|
+| Telefon 412×892 dp | `y = 0…812 dp` | alt çubuk `y = 812…892 dp` | tam bitişik, taşma yok |
+| Tablet 1000×800 dp | `x = 80…1000 dp` | ray `x = 0…80 dp` | tam bitişik, taşma yok |
+
+Yani `shell-phone` karesinde hedef kartının çubuk hizasında kesilmesi çakışma değil, listenin
+kaydırma sınırı: son kart `+24 dp` alt boşlukla tamamen görünür hâle gelir. Ölçümler koşu
+günlüğüne `[insets] …` satırı olarak düşer.
+
 
 > **Referans karşılaştırması açık.** Her kare, `app/src/test/screenshots/` altındaki aynı adlı
 > referansla karşılaştırılır. Kanal başına 8/255 fark ve kare başına %0.1 piksel tolere edilir;

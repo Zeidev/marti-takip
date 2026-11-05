@@ -139,6 +139,11 @@ fun TrackerAppShell(
         // the shell to spend here. Adding padding of our own would either
         // double a gap the layout already left or swallow a system-bar inset
         // that the screens below still need.
+        //
+        // That is not an assumption any more: `ShellScreenshotTest` measures the
+        // region this Box gets and asserts it ends at or above the navigation
+        // component - 812 of 892 dp on a phone (the bar takes the last 80), and
+        // from x = 80 dp on a 1000 dp tablet (the rail takes the first 80).
         AnimatedContent(
             targetState = destination,
             transitionSpec = {
