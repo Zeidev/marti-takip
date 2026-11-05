@@ -231,6 +231,11 @@ kare, `app/src/test/screenshots/` altındaki aynı adlı referansla karşılaşt
 > O iş kayıt modunda çizer, kareleri referans klasörüne kopyalar ve commit'i kendisi push eder.
 > Referansı henüz olmayan yeni bir kare kırmızı olmaz: yalnızca `build/outputs/roborazzi/`
 > altına yazılır ve konsola `no reference for <ad>` düşer.
+>
+> **`--no-build-cache` şart.** Gradle `testDebugUnitTest` görevini cache'ten geri yüklerse
+> (`FROM-CACHE`) test hiç çalışmaz — ve Roborazzi'nin PNG'leri bu görevin bildirilmiş çıktısı
+> olmadığı için cache'ten gelmez. Sonuç: yeşil ama boş bir koşu. CI'da bu yüzden test adımı
+> `--no-build-cache` ile çağrılır; yerelde de kareleri üretmek için aynısını yap.
 
 ---
 

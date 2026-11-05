@@ -85,8 +85,14 @@ jobs:
       # business rules (day bucketing, price snapshots, region grouping) are the
       # only automated check this project has, so letting it fail silently made
       # the whole suite decorative.
+      #
+      # `--no-build-cache` is load-bearing. When Gradle restores this task
+      # FROM-CACHE it does not execute it, and Roborazzi's PNGs - which are not
+      # declared outputs of `testDebugUnitTest` - are not restored with it. The
+      # run then goes green having rendered nothing, and the artifact uploaded
+      # below is silently empty.
       - name: Run unit tests
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        run: ./gradlew :app:testDebugUnitTest --no-build-cache --stacktrace
 
       # The unit-test run above also renders every screen through Robolectric and
       # Roborazzi. Those PNGs are the only way to look at the layout without an
@@ -216,17 +222,33 @@ jobs:
       # Record mode, because the references are the stale half of this run: if
       # the recorded frames were still compared against them, the intended
       # difference would fail the suite before it could be recorded.
+      #
+      # `--no-build-cache` for the same reason as in the build job, only worse
+      # here: a cache hit means the task never runs, so there is nothing to copy
+      # into the reference folder. That is exactly how the first run of this job
+      # failed, with a bare `ls: cannot access ...: No such file or directory`.
       - name: Render the frames in record mode
         env:
           MT_RECORD_SCREENSHOTS: "1"
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+        run: ./gradlew :app:testDebugUnitTest --no-build-cache --stacktrace
 
       - name: Copy the frames into the reference folder
         run: |
           set -euo pipefail
-          ls -l app/build/outputs/roborazzi
+
+          # Search for the frames rather than assuming the one path they are
+          # supposed to be in. A missing folder then reads as "the tests did not
+          # run" with the frames that *were* found printed, instead of a bare
+          # `ls: cannot access ...: No such file or directory`.
+          mapfile -t FRAMES < <(find . -type d -name .git -prune -o -type f -name '*.png' -path '*roborazzi*' -print | sort)
+          if [ "${#FRAMES[@]}" -eq 0 ]; then
+            echo "::error::No rendered frames were found; the screenshot tests did not run."
+            exit 1
+          fi
+          printf 'rendered: %s\n' "${FRAMES[@]}"
+
           mkdir -p app/src/test/screenshots
-          cp app/build/outputs/roborazzi/*.png app/src/test/screenshots/
+          cp "${FRAMES[@]}" app/src/test/screenshots/
           echo "--- references ---"
           ls -l app/src/test/screenshots
 
