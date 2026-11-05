@@ -119,6 +119,14 @@ görünür, çünkü ikisi de aynı `windowSplashScreen*` niteliklerini okur. Te
 `values/` içindedir: ikon ve marka rengi karanlıkta da aynı olduğu için gece varyantı
 kopya olurdu, fark değil.
 
+**9. Ekran görüntüsü testleri Gradle eklentisi olmadan çalışır.**
+Roborazzi'nin kendi eklentisi `recordRoborazzi*` / `verifyRoborazzi*` görevlerini ekler, ama
+o görevler referans görüntü yokken kırmızı olur — yani test altyapısı, korumak istediği
+derlemeyi kırar. Burada eklenti bilinçli olarak yok: PNG üretimi sıradan `testDebugUnitTest`
+çalışmasının yan ürünüdür, kareler CI'da artifact olarak yüklenir ve eksik bir dosya
+derlemeyi asla durduramaz. Karşılaştırma modu, referanslar depoya işlendikten sonra açılacak
+bilinçli bir sonraki adım olarak duruyor.
+
 ---
 
 ## 🚀 Kurulum (yerel derleme gerekmez)
@@ -188,6 +196,22 @@ normalizasyonu/yuvarlama, hedef ilerlemesi, araç tipi serileştirme, para/süre
 bölge çözümleme (Kadıköy eşleşmesi, uzak noktada "Diğer", koordinatsız kayıtlar, Haversine
 mesafesi ve gruplama sıralaması).
 
+Aynı komut **ekran görüntüsü testlerini** de çalıştırır. Robolectric Compose ağacını JVM'de
+gerçek kaynaklarla çizer, Roborazzi sonucu PNG olarak yazar; görüntüler
+`app/build/outputs/roborazzi/` altında oluşur ve CI her push'ta bunları `ui-screenshots`
+artifact'i olarak yükler. Yani yerleşimi görmek için telefona kurmak gerekmez.
+
+| Kare | Neyi görünür kılar |
+|---|---|
+| `counter-scooter` · `counter-moped-empty` | Dev `+1` hedefinin okunurluğu, boş durumda `-1`'in pasif görünmesi |
+| `goal-reached` | Hedef çubuğunun tamamlanmış hâli |
+| `shell-phone` · `tracker-screen-phone` | Alt çubuğun arkasında kalan içerik, çift durum çubuğu boşluğu |
+| `shell-tablet` | 1000 dp'de ray mı çıkıyor, kartlar yan yana mı geliyor |
+
+> **Altın (golden) karşılaştırma kapalı.** Görüntüler kaydedilir, doğrulanmaz: eksik bir
+> referans dosyası derlemeyi kıramaz. Referans kareler depoya işlendikten sonra Roborazzi'nin
+> karşılaştırma modu açılabilir — o zaman bir sonraki görsel gerileme CI'da kırmızı olur.
+
 ---
 
 ## 🛠️ Teknik sürümler
@@ -201,6 +225,8 @@ mesafesi ve gruplama sıralaması).
 | Material 3 | 1.5.0-beta01 |
 | material3-adaptive-navigation-suite | 1.5.0-beta01 |
 | core-splashscreen | 1.2.0 |
+| Robolectric | 4.17 |
+| Roborazzi | 1.77.0 |
 | Room | 2.8.5 (KSP 2.3.13) |
 | osmdroid | 6.1.20 |
 | play-services-location | 21.4.0 |

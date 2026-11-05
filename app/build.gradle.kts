@@ -117,6 +117,15 @@ android {
         noCompress += "db"
     }
 
+    testOptions {
+        unitTests {
+            // Robolectric runs the real app resources and the merged debug
+            // manifest on the JVM. Without this the screenshot tests see an
+            // empty resource table and every screen renders as a blank frame.
+            isIncludeAndroidResources = true
+        }
+    }
+
     lint {
         abortOnError = false
         checkReleaseBuilds = false
@@ -167,6 +176,18 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
+
+    // JVM screenshot tests: Robolectric renders the real Compose tree off-device
+    // and Roborazzi writes it out as a PNG, so the layout can be looked at
+    // without an emulator. Deliberately *no* Roborazzi Gradle plugin - the images
+    // come out of the plain unit-test task, so a missing golden can never turn
+    // into a red build; the CI job uploads the folder as an artifact instead.
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.junit)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

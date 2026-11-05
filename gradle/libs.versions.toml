@@ -24,6 +24,12 @@ playServicesLocation = "21.4.0"
 coroutines = "1.9.0"
 datastore = "1.1.1"
 junit = "4.13.2"
+# JVM screenshot tests: Robolectric renders the Compose tree off-device and
+# Roborazzi writes it out as a PNG, so the layout can be looked at without an
+# emulator. Both run in the plain `test` source set - no Gradle plugin, so the
+# images are produced by `testDebugUnitTest` itself.
+robolectric = "4.17"
+roborazzi = "1.77.0"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
 
@@ -61,6 +67,9 @@ androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "a
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
