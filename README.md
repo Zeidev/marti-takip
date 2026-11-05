@@ -25,6 +25,7 @@ Kotlin + Jetpack Compose + Material 3 · Room (SQLite) · OpenStreetMap · Tek s
 | **Trend** | Son 14 günün günlük değişim grafiği + düne göre fark. |
 | **Motivasyon** | İlerlemeye göre değişen kısa teşvik mesajı. |
 | **Sesli onay** | Her kayıtta kısa bip (ayarlardan kapatılabilir). |
+| **Açılış ekranı** | Android 12 `SplashScreen` API'si (`core-splashscreen`), API 26'ya kadar geri taşınmış. Soğuk başlangıçta marka rengi + uygulama ikonu; ilk Compose karesine kadar boş beyaz kare yok. |
 | **Uyarlanabilir arayüz** | Navigasyon bileşeni ve kart yerleşimi pencere genişliğine göre kendini seçer: telefonda alt çubuk + tek kolon, tablette yan ray + yan yana sayaçlar, masaüstü penceresinde çekmece. |
 | **Arşivden geri alma** | Yanlışlıkla kaydedilen vardiya tek dokunuşla aktife döner. Yalnızca **bugünün** vardiyası geri alınabilir; eski günler geçmişte kalır. |
 | **Günü sil** | Arşivlemeden silme; onay diyaloğu ile korunur. |
@@ -109,6 +110,15 @@ altında alt alta. Animasyon süreleri elle seçilmiş `tween` değerleri yerine
 `MaterialTheme.motionScheme` jetonlarından gelir; böylece arayüz Material
 bileşenleriyle aynı ritimde hareket eder.
 
+**8. Açılış ekranı bir tema ve bir çağrıdır.**
+Soğuk başlangıçta gösterilen pencere `Theme.MartiTakip.Splash`'tır; `Theme.SplashScreen`
+üzerine kurulur ve `postSplashScreenTheme` ile hemen `Theme.MartiTakip`e döner.
+`installSplashScreen()` `super.onCreate()`'dan **önce** çağrılır — tema değişimi o anda
+yapılır. API 31 ve üzerinde pencereyi sistem çizer, altında kütüphane; iki yol da aynı
+görünür, çünkü ikisi de aynı `windowSplashScreen*` niteliklerini okur. Tema yalnızca
+`values/` içindedir: ikon ve marka rengi karanlıkta da aynı olduğu için gece varyantı
+kopya olurdu, fark değil.
+
 ---
 
 ## 🚀 Kurulum (yerel derleme gerekmez)
@@ -190,6 +200,7 @@ mesafesi ve gruplama sıralaması).
 | Compose BOM | 2026.09.00 |
 | Material 3 | 1.5.0-beta01 |
 | material3-adaptive-navigation-suite | 1.5.0-beta01 |
+| core-splashscreen | 1.2.0 |
 | Room | 2.8.5 (KSP 2.3.13) |
 | osmdroid | 6.1.20 |
 | play-services-location | 21.4.0 |

@@ -8,4 +8,23 @@
         <item name="android:enforceNavigationBarContrast">false</item>
         <item name="android:enforceStatusBarContrast">false</item>
     </style>
+
+    <!--
+      The window the launcher paints before the first Compose frame exists.
+
+      `installSplashScreen()` in MainActivity swaps this style for Theme.MartiTakip
+      as soon as the process starts, so nothing here outlives the cold start: the
+      brand teal and the launcher icon are its entire content. `brand_teal` is
+      the adaptive icon's background layer too, so the icon does not land on a
+      second colour of its own.
+
+      Kept in `values/` only: the icon and the brand colour are the same in both
+      schemes, so a night variant would be a duplicate, not a difference. The
+      post-splash theme still resolves to the night override by itself.
+    -->
+    <style name="Theme.MartiTakip.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/brand_teal</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.MartiTakip</item>
+    </style>
 </resources>
